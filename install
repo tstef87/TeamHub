@@ -1,0 +1,17 @@
+#!/bin/bash
+# install - Installs dependencies for the TeamHub React app
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$SCRIPT_DIR/teamhub-app"
+
+if [ ! -d "$APP_DIR" ]; then
+  echo "Error: teamhub-app directory not found at $APP_DIR"
+  exit 1
+fi
+
+echo "Installing dependencies in teamhub-app..."
+cd "$APP_DIR"
+npm install
+
+echo "Install complete."

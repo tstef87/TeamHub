@@ -1,0 +1,23 @@
+#!/bin/bash
+# stop - Stops the TeamHub React app started by ./start
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PID_FILE="$SCRIPT_DIR/.teamhub.pid"
+
+if [ ! -f "$PID_FILE" ]; then
+  echo "No PID file found. Is the app running? (Was it started with ./start?)"
+  exit 1
+fi
+
+APP_PID="$(cat "$PID_FILE")"
+
+if kill -0 "$APP_PID" 2>/dev/null; then
+  echo "Stopping TeamHub app (PID $APP_PID)..."
+  kill "$APP_PID"
+  rm -f "$PID_FILE"
+  echo "Stopped."
+else
+  echo "Process $APP_PID not running. Cleaning up stale PID file."
+  rm -f "$PID_FILE"
+fi

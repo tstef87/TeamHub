@@ -1,0 +1,43 @@
+#!/bin/bash
+# start - Starts the TeamHub React app (npm run dev) in the background
+set -e
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+APP_DIR="$SCRIPT_DIR/teamhub-app"
+PID_FILE="$SCRIPT_DIR/.teamhub.pid"
+LOG_FILE="$SCRIPT_DIR/teamhub.log"
+
+if [ ! -d "$APP_DIR" ]; then
+  echo "Error: teamhub-app directory not found at $APP_DIR"
+  exit 1
+fi
+
+if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
+  echo "TeamHub app is already running (PID $(cat "$PID_FILE"))."
+  exit 0
+fi
+
+echo "Starting TeamHub app..."
+cd "$APP_DIR"
+nohup npm run dev > "$LOG_FILE" 2>&1 &
+APP_PID=$!
+
+echo "$APP_PID" > "$PID_FILE"
+echo "TeamHub app started (PID $APP_PID)."
+echo "Logs: $LOG_FILE"
+
+# Wait for the dev server to print its URL, then show it
+echo "Waiting for dev server to come up..."
+for i in $(seq 1 15); do
+  URL="$(grep -Eo 'https?://[^ ]+:[0-9]+[^ ]*' "$LOG_FILE" | head -n 1)"
+  if [ -n "$URL" ]; then
+    echo "TeamHub app is running at: $URL"
+    break
+  fi
+  sleep 1
+done
+
+if [ -z "$URL" ]; then
+  echo "Could not detect the URL yet. Check $LOG_FILE manually:"
+  tail -n 10 "$LOG_FILE"
+fi
