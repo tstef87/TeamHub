@@ -1,5 +1,28 @@
-import React from "react";
+import React, { useState } from "react";
 
 export default function Login() {
-  return <h1>Login</h1>;
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+
+  return (
+    <div>
+      <h1>Login</h1>
+
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+      />
+
+      <button>Log In</button>
+    </div>
+  );
 }
