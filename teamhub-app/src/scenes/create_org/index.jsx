@@ -1,6 +1,9 @@
 import { useState } from "react";
-import SchoolClubSelect from "../activities/SchoolClubSelect.jsx";
-import SportsTeamSelect from "../activities/SportsTeamSelect.jsx";
+import { useNavigate } from "react-router-dom";
+import ActivitySelect from "../activities/ActivitySelect.jsx";
+import CalendarUpload from "../calendar/CalendarUpload.jsx";
+import { createTeam } from "../../firestore/teams";
+
 import {
   Alert,
   Autocomplete,
@@ -21,13 +24,15 @@ import {
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function CreateOrg({ onSubmit, onCancel }) {
+  const navigate = useNavigate();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [visibility, setVisibility] = useState("private");
+  const [activityType, setActivityType] = useState("sport");
+  const [activity, setActivity] = useState("");
+  const [calendarEvents, setCalendarEvents] = useState([]);
   const [members, setMembers] = useState([]);
   const [errors, setErrors] = useState({});
-  const [sport, setSport] = useState("");
-  const [club, setClub] = useState("");
+  const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
   const validate = () => {
@@ -42,28 +47,28 @@ export default function CreateOrg({ onSubmit, onCancel }) {
     return next;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const next = validate();
     setErrors(next);
     if (Object.keys(next).length) return;
-
-    const team = {
-      name: name.trim(),
-      description: description.trim(),
-      visibility,
-      members,
-    };
-    onSubmit?.(team);
-    setSubmitted(true);
+ 
+    setSaving(true);
+    try {
+      await createTeam({ name, description, org_cat: activityType, org: activity });
+      navigate("/My-Teams"); // only runs if the save worked
+    } catch (err) {
+      console.error(err);
+      setErrors({ form: err.message });
+      setSaving(false);
+    }
   };
 
   const handleReset = () => {
     setName("");
     setDescription("");
-    setSport("");
-    setClub("");
-    setVisibility("private");
+    setActivityType("sport");
+    setActivity("");
     setMembers([]);
     setErrors({});
     setSubmitted(false);
@@ -104,7 +109,6 @@ export default function CreateOrg({ onSubmit, onCancel }) {
             fullWidth
             autoFocus
           />
-
           <TextField
             label="Description"
             value={description}
@@ -115,30 +119,16 @@ export default function CreateOrg({ onSubmit, onCancel }) {
             slotProps={{ htmlInput: { maxLength: 250 } }}
             helperText={`${description.length}/250`}
           />
-
-          <SportsTeamSelect value={sport} onChange={setSport} />
-          <SchoolClubSelect value={club} onChange={setClub} />
-
-          <FormControl>
-            <FormLabel id="visibility-label">Visibility</FormLabel>
-            <RadioGroup
-              aria-labelledby="visibility-label"
-              value={visibility}
-              onChange={(e) => setVisibility(e.target.value)}
-            >
-              <FormControlLabel
-                value="private"
-                control={<Radio />}
-                label="Private – only invited members can join"
-              />
-              <FormControlLabel
-                value="public"
-                control={<Radio />}
-                label="Public – anyone can find and join"
-              />
-            </RadioGroup>
-          </FormControl>
-
+          <ActivitySelect
+            type={activityType}
+            onTypeChange={setActivityType}
+            value={activity}
+            onChange={setActivity}
+          />
+          <CalendarUpload
+            onEventsParsed={setCalendarEvents}
+            onClear={() => setCalendarEvents([])}
+          />
           <Autocomplete
             multiple
             freeSolo
@@ -162,20 +152,19 @@ export default function CreateOrg({ onSubmit, onCancel }) {
             renderInput={(params) => (
               <TextField
                 {...params}
-                label="Invite members"
+                label="Add Members"
                 placeholder="Type an email and press Enter"
                 error={Boolean(errors.members)}
                 helperText={errors.members}
               />
             )}
           />
-
           <Stack direction="row" spacing={1.5} sx={{ justifyContent: "flex-end" }}>
-            <Button variant="text" onClick={handleReset}>
+            <Button variant="text" onClick={() => navigate("/")}>
               Cancel
             </Button>
-            <Button type="submit" variant="contained">
-              Create team
+            <Button type="submit" variant="contained" disabled={saving}>
+              {saving ? "Creating..." : "Create team"}
             </Button>
           </Stack>
         </Stack>

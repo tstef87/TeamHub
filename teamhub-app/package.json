@@ -18,6 +18,7 @@
     "@radix-ui/themes": "^3.3.0",
     "@react-spring/web": "^10.1.2",
     "firebase": "^12.19.0",
+    "ical.js": "^2.2.1",
     "mui": "^0.0.1",
     "radix-ui": "^1.6.7",
     "react": "^19.2.8",
