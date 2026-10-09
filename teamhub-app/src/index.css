@@ -295,3 +295,235 @@
     }
   }
 }
+/* =========================================
+   TeamHub Login Page
+   ========================================= */
+   
+/* 1. WHOLE PAGE */
+.login-page {
+  min-height: 60vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 70px 20px;
+}
+
+/* 2. LOGIN CONTAINER */
+.login-container {
+  width: 100%;
+  max-width: 550px;
+  padding: 60px;
+  box-sizing: border-box;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.25);
+}
+
+/* 3. PAGE TITLE */
+.login-container h1 {
+  text-align: center;
+  font-size: 30px;
+  font-weight: 800;
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+/* 4. LOGIN FORM */
+.login-form {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+/* 5. INPUTS */
+.login-form input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #cccccc;
+  border-radius: 10px;
+  background: white;
+  min-height: 44px;
+}
+
+/* 6. INPUT WHEN CLICKED */
+.login-form input:focus {
+  outline: none;
+  border: 2px solid #888888;
+}
+
+/* 7. VALIDATION ERROR */
+.login-form .input-error {
+  border: 2px solid red !important;
+}
+
+/* 8. ERROR MESSAGE */
+.login-form .error-message {
+  margin: 5px 0 0 0;
+  color: red;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+/* 9. LOGIN BUTTON */
+.login-button {
+  width: 100%;
+  padding: 10px;
+  font-size: 18px;
+  font-weight: 750;
+  cursor: pointer;
+  border: none;
+  border-radius: 10px;
+  background: #9e1b32;
+  color: white;
+}
+
+/* 10. CREATE ACCOUNT LINK */
+.create-account-link {
+  text-align: center;
+  margin-top: 20px;
+}
+
+/* 11. MOBILE LAYOUT */
+@media (max-width: 600px) {
+  .login-container {
+    padding: 25px;
+  }
+
+}
+
+/* =========================================
+   TeamHub Create Account Page
+   ========================================= */
+
+/* 1. WHOLE PAGE */
+.create-account-page {
+  min-height: 60vh; /* Try changing 100vh to 80vh or 120vh */
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 70px 20px;
+}
+
+/* The CREATE ACCOUNT Container */
+.create-account-container {
+  width: 100%;
+  max-width: 550px;
+  padding: 60px;
+  box-sizing: border-box;
+  background: white;
+  border-radius: 20px;
+  box-shadow: 0 8px 15px rgba(0, 0, 0, 0.25);
+}
+/* 3. PAGE TITLE */
+.create-account-container h1 {
+  text-align: center;
+  font-size: 30px;
+  font-weight: 800;
+  margin-top: 0;
+  margin-bottom: 20px;
+}
+
+/* 4. FORM LAYOUT */
+.create-account-form {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  /* This creates TWO equal columns.
+
+     1fr 1fr means:
+
+     |      50%      |      50%      |
+
+     Try:
+
+     1fr = one column
+     
+     1fr 1fr = two equal columns
+     
+     2fr 1fr = first column is twice as wide
+     as the second
+  */
+  gap: 20px;
+}
+
+/* 5. INDIVIDUAL FIELD */
+.form-field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 6. INPUTS AND DROPDOWN */
+.form-field input,
+.form-field select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  font-size: 16px;
+  border: 1px solid #cccccc;
+  border-radius: 10px;
+  background: white;
+  min-height: 44px;
+}
+.form-field select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.full-width {
+  grid-column: 1 / -1;
+}
+
+/* 7. INPUT WHEN CLICKED */
+.form-field input:focus,
+.form-field select:focus {
+  outline: none;
+  border: 2px solid #888888;
+}
+
+/* 8. VALIDATION ERROR INPUT */
+.input-error {
+  border: 2px solid red !important;
+}
+
+/* 9. VALIDATION ERROR MESSAGE */
+.error-message {
+  margin: 5px 0 0 0;
+  /* 5px = space between input and error */
+
+  color: red;
+  font-weight: bold;
+  font-size: 12px;
+}
+
+/* 10. CREATE ACCOUNT BUTTON */
+.create-account-button {
+  grid-column: 1 / -1;
+  padding: 10px;
+  font-size: 18px;
+  font-weight: 750;
+  cursor: pointer;
+  border: none;
+  border-radius: 10px;
+  background: #9e1b32;
+  color: white;
+}
+
+/* 11. LOGIN LINK */
+.login-link {
+  text-align: center;
+  margin-top: 20px;
+}
+
+/* 12. MOBILE LAYOUT */
+@media (max-width: 600px) {
+  .create-account-container {
+    padding: 25px;
+  }
+
+  .create-account-form {
+    grid-template-columns: 1fr;
+  }
+
+}
