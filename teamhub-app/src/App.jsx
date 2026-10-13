@@ -5,7 +5,8 @@ import Login from "./scenes/login/index.jsx"
 import CreateOrg from "./scenes/create_org"
 import HomePage from "./scenes/home_page"
 import NotFound from "./scenes/not_found"
-import MyTeams from "./scenes/teams/my_teams"
+import Teams from "./scenes/teams/teams"
+import Team from "./scenes/teams/team"
 
 function App() {
   return (
@@ -15,7 +16,8 @@ function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/Login" element={<Login />} />
           <Route path="/Create-Org" element={<CreateOrg />} />
-          <Route path="/My-Teams" element={<MyTeams />} />
+          <Route path="/Teams" element={<Teams />} />
+          <Route path="/Teams/Team" element={<Team />} />
 
           {/* 404 Not Found Page */}
           <Route path="*" element={<NotFound />} />

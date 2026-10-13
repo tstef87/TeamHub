@@ -21,7 +21,7 @@ import {
   Typography,
 } from "@mui/material";
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const EMAIL_RE = /^[^\s@]+@sju.edu;
 
 export default function CreateOrg({ onSubmit, onCancel }) {
   const navigate = useNavigate();
