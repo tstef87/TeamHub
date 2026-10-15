@@ -39,6 +39,7 @@ export default function TeamPage() {
     };
   }, [teamId]);
 
+  // TODO: Loading Circle, wrap around entire project
   if (loading) {
     return (
       <Box sx={{ display: "flex", justifyContent: "center", p: 6 }}>
@@ -47,9 +48,11 @@ export default function TeamPage() {
     );
   }
 
+  // Error Handeling 
   if (error) return <Alert severity="error">{error}</Alert>;
   if (!team) return <Alert severity="warning">Team not found.</Alert>;
 
+  // Display Team info 
   return (
     <Box sx={{ maxWidth: 700, mx: "auto", p: { xs: 2, sm: 4 } }}>
       <Stack spacing={3}>

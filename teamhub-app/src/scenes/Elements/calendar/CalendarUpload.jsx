@@ -56,7 +56,9 @@ export default function CalendarUpload({
 
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
-    e.target.value = ""; // lets the same file be picked again
+    
+    // lets the same file be picked again
+    e.target.value = ""; 
     if (!file) return;
 
     setError("");

@@ -1,9 +1,10 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import EnhancedTable from "../../Elements/table/basicTable";  
+import EnhancedTable from "../../Elements/table/BasicTable";  
 import useCollection from "../../../hooks/useCollection.js"; 
 import { Box, Button } from "@mui/material";
 
+// Table Columns 
 const headCells = [
   { id: "name", label: "Teams" },
   { id: "org_cat", label: "Organization Type" },

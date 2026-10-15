@@ -2,11 +2,11 @@ import {BrowserRouter, Navigate, Route, Routes} from "react-router-dom";
 
 // Import Scenes 
 import Login from "./scenes/login/index.jsx"
-import CreateTeam from "./scenes/TeamPages/teams/create_team"
-import HomePage from "./scenes/HomePage"
-import NotFound from "./scenes/NotFound"
-import Teams from "./scenes/TeamPages/teams"
-import Team from "./scenes/TeamPages/teams/team"
+import CreateTeam from "./scenes/team_pages/teams/create_team"
+import HomePage from "./scenes/home_page"
+import NotFound from "./scenes/not_found"
+import Teams from "./scenes/team_pages/teams"
+import Team from "./scenes/team_pages/teams/team"
 import CreateAccount from "./scenes/create_acc";
 
 function App() {

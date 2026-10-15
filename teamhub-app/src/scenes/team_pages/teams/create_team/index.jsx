@@ -21,6 +21,7 @@ import {
   Typography,
 } from "@mui/material";
 
+// Validate Email
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function CreateTeam({ onSubmit, onCancel }) {
