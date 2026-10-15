@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import EnhancedTable from "../../Elements/table/BasicTable";  
+import EnhancedTable from "../../elements/table/BasicTable";  
 import useCollection from "../../../hooks/useCollection.js"; 
 import { Box, Button } from "@mui/material";
 

@@ -10,7 +10,8 @@ import {
   writeBatch,
   // serverTimestamp,  // re-enable with createdAt below
 } from "firebase/firestore";
-import { auth, db } from "../firebase";
+// import { auth, db } from "../firebase";
+import { db } from "../firebase";
 
 export const TEAMS_COLLECTION = "teams";
 

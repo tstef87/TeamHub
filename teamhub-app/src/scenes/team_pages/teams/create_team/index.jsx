@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ActivitySelect from "../../../Elements/activities/ActivitySelect";
-import CalendarUpload from "../../../Elements/calendar/CalendarUpload.jsx";
+import ActivitySelect from "../../../elements/activities/ActivitySelect";
+import CalendarUpload from "../../../elements/calendar/CalendarUpload.jsx";
 import { createTeam, teamNameExists } from "../../../../firestore/Teams";
 
 import {
@@ -10,12 +10,7 @@ import {
   Box,
   Button,
   Chip,
-  FormControl,
-  FormControlLabel,
-  FormLabel,
   Paper,
-  Radio,
-  RadioGroup,
   Stack,
   TextField,
   Typography,
