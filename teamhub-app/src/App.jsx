@@ -7,6 +7,7 @@ import HomePage from "./scenes/HomePage"
 import NotFound from "./scenes/NotFound"
 import Teams from "./scenes/TeamPages/teams"
 import Team from "./scenes/TeamPages/teams/team"
+import CreateAccount from "./scenes/create_acc";
 
 function App() {
   return (
@@ -15,6 +16,7 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/Login" element={<Login />} />
+          <Route path="/Create-Account" element={<CreateAccount />} />
           <Route path="/Teams" element={<Teams />} />
           <Route path="/Teams/Create-Team" element={<CreateTeam />} />
 
