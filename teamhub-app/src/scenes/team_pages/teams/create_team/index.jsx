@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import ActivitySelect from "../../../Elements/activities/ActivitySelect";
 import CalendarUpload from "../../../Elements/calendar/CalendarUpload.jsx";
-import { createTeam, teamNameExists } from "../../../../firestore/teams";
+import { createTeam, teamNameExists } from "../../../../firestore/Teams";
 
 import {
   Alert,

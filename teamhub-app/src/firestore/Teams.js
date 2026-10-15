@@ -1,4 +1,4 @@
-// src/firestore/teams.js
+// src/firestore/Teams.js
 import {
   collection,
   getDocs,
