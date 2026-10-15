@@ -9,7 +9,7 @@ import {
   Stack,
   Typography,
 } from "@mui/material";
-import { getTeam } from "../../../../firestore/teams";
+import { getTeam } from "../../../../firestore/Teams";
 
 export default function TeamPage() {
   const { teamId } = useParams();
