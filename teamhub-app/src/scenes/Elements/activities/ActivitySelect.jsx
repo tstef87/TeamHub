@@ -179,25 +179,25 @@ export default function ActivitySelect({
   error = false,
 }) {
   // Works controlled (type/value + handlers) or on its own.
-  const [internalType, setInternalType] = useState("sport");
-  const [internalValue, setInternalValue] = useState("");
-  const currentType = type ?? internalType;
-  const current = value ?? internalValue;
+  const [p_internalType, set_p_InternalType] = useState("sport");
+  const [p_activity, set_p_activity] = useState("");
+  const currentType = type ?? p_internalType;
+  const current = value ?? p_activity;
 
   const options = OPTIONS_BY_TYPE[currentType];
   const selectLabel = label ?? LABEL_BY_TYPE[currentType];
 
   const handleTypeChange = (e) => {
     const next = e.target.value;
-    setInternalType(next);
+    set_p_InternalType(next);
     onTypeChange?.(next);
     // The two lists have different options, so clear the old selection.
-    setInternalValue("");
+    set_p_activity("");
     onChange?.("");
   };
 
   const handleChange = (e) => {
-    setInternalValue(e.target.value);
+    set_p_activity(e.target.value);
     onChange?.(e.target.value);
   };
 

@@ -2,11 +2,11 @@ import {BrowserRouter, Navigate, Route, Routes} from "react-router-dom";
 
 // Import Scenes 
 import Login from "./scenes/login/index.jsx"
-import CreateOrg from "./scenes/create_org"
-import HomePage from "./scenes/home_page"
-import NotFound from "./scenes/not_found"
-import Teams from "./scenes/teams/teams"
-import Team from "./scenes/teams/team"
+import CreateTeam from "./scenes/TeamPages/teams/create_team"
+import HomePage from "./scenes/HomePage"
+import NotFound from "./scenes/NotFound"
+import Teams from "./scenes/TeamPages/teams"
+import Team from "./scenes/TeamPages/teams/team"
 
 function App() {
   return (
@@ -15,9 +15,11 @@ function App() {
         <Routes>
           <Route path="/" element={<HomePage />} />
           <Route path="/Login" element={<Login />} />
-          <Route path="/Create-Org" element={<CreateOrg />} />
           <Route path="/Teams" element={<Teams />} />
-          <Route path="/Teams/Team" element={<Team />} />
+          <Route path="/Teams/Create-Team" element={<CreateTeam />} />
+
+          {/* Selected Team Page */}
+          <Route path="/teams/:teamId" element={<Team />} />
 
           {/* 404 Not Found Page */}
           <Route path="*" element={<NotFound />} />

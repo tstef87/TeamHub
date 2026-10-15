@@ -1,8 +1,8 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import EnhancedTable from "../../table/basicTable"; // same folder; adjust if it lives elsewhere
-import useCollection from "../../../hooks/useCollection"; // adjust path
-import { Box } from "@mui/material";
+import EnhancedTable from "../../Elements/table/basicTable";  
+import useCollection from "../../../hooks/useCollection.js"; 
+import { Box, Button } from "@mui/material";
 
 const headCells = [
   { id: "name", label: "Teams" },
@@ -24,8 +24,11 @@ export default function Teams() {
         rows={rows}
         loading={loading}
         defaultOrderBy="name"
-        onRowClick={(row) => navigate("/teams/team", { state: { id: row.id } })}
-      />
+        onRowClick={(row) => navigate(`/teams/${row.id}`)}      />
+
+        <Button variant="contained" onClick={() => navigate("create-team")} sx={{ alignSelf: "flex-start" }}>
+          Create Team
+        </Button>
     </Box>
   );
 }

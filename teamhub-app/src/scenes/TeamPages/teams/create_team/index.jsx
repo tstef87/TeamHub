@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import ActivitySelect from "../activities/ActivitySelect.jsx";
-import CalendarUpload from "../calendar/CalendarUpload.jsx";
-import { createTeam } from "../../firestore/teams";
+import ActivitySelect from "../../../Elements/activities/ActivitySelect";
+import CalendarUpload from "../../../Elements/calendar/CalendarUpload.jsx";
+import { createTeam, teamNameExists } from "../../../../firestore/teams";
 
 import {
   Alert,
@@ -21,9 +21,9 @@ import {
   Typography,
 } from "@mui/material";
 
-const EMAIL_RE = /^[^\s@]+@sju.edu;
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-export default function CreateOrg({ onSubmit, onCancel }) {
+export default function CreateTeam({ onSubmit, onCancel }) {
   const navigate = useNavigate();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -35,11 +35,21 @@ export default function CreateOrg({ onSubmit, onCancel }) {
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const validate = () => {
+  const validate = async () => {  
     const next = {};
+
+    // Team Name Checks 
     if (!name.trim()) next.name = "Team name is required";
     else if (name.trim().length < 3) next.name = "Use at least 3 characters";
+    else if (await teamNameExists(name)) next.name = "A team with that name already exists";
+    
+    // Description Check 
+    if (!description.trim()) next.description = "Team Description is required";
 
+    // Activity Check 
+    if (!activity.trim()) next.activity = "Activity is required";
+
+    // Member Check 
     const badEmails = members.filter((m) => !EMAIL_RE.test(m));
     if (badEmails.length) {
       next.members = `Invalid email: ${badEmails.join(", ")}`;
@@ -49,14 +59,23 @@ export default function CreateOrg({ onSubmit, onCancel }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    const next = validate();
-    setErrors(next);
-    if (Object.keys(next).length) return;
- 
     setSaving(true);
     try {
-      await createTeam({ name, description, org_cat: activityType, org: activity });
-      navigate("/My-Teams"); // only runs if the save worked
+      const next = await validate();
+      setErrors(next);
+      if (Object.keys(next).length) {
+        setSaving(false);
+        return;
+      }
+
+      await createTeam({
+        name,
+        description,
+        org_cat: activityType,
+        org: activity,
+        events: calendarEvents,
+      });
+      navigate("/Teams");
     } catch (err) {
       console.error(err);
       setErrors({ form: err.message });
@@ -113,9 +132,11 @@ export default function CreateOrg({ onSubmit, onCancel }) {
             label="Description"
             value={description}
             onChange={(e) => setDescription(e.target.value)}
+            error={Boolean(errors.description)}
             multiline
             minRows={3}
             fullWidth
+            required
             slotProps={{ htmlInput: { maxLength: 250 } }}
             helperText={`${description.length}/250`}
           />
@@ -123,10 +144,12 @@ export default function CreateOrg({ onSubmit, onCancel }) {
             type={activityType}
             onTypeChange={setActivityType}
             value={activity}
+            error={Boolean(errors.activity)}
+            required
             onChange={setActivity}
           />
           <CalendarUpload
-            onEventsParsed={setCalendarEvents}
+            onEventsParsed={(parsed) => setCalendarEvents(parsed)}
             onClear={() => setCalendarEvents([])}
           />
           <Autocomplete
@@ -160,7 +183,7 @@ export default function CreateOrg({ onSubmit, onCancel }) {
             )}
           />
           <Stack direction="row" spacing={1.5} sx={{ justifyContent: "flex-end" }}>
-            <Button variant="text" onClick={() => navigate("/")}>
+            <Button variant="text" onClick={() => navigate(-1)}>
               Cancel
             </Button>
             <Button type="submit" variant="contained" disabled={saving}>
