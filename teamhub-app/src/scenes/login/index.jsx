@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   sendPasswordResetEmail,
   signInWithEmailAndPassword
@@ -9,6 +9,14 @@ import { Eye, EyeOff } from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const requestedDestination = location.state?.from;
+  const redirectTo =
+    typeof requestedDestination === "string" &&
+    requestedDestination.startsWith("/") &&
+    !requestedDestination.startsWith("//")
+      ? requestedDestination
+      : null;
   
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -45,7 +53,9 @@ export default function Login() {
       password
     );
 
-    navigate("/");
+    if (redirectTo) {
+      navigate(redirectTo, { replace: true });
+    }
   } catch (error) {
     console.error(error);
 

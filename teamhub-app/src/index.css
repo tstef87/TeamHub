@@ -487,6 +487,7 @@
   border: 1px solid #cccccc;
   border-radius: 10px;
   background: white;
+  color: #000;
   min-height: 44px;
 }
 .full-width {
@@ -542,4 +543,19 @@
     grid-template-columns: 1fr;
   }
 
+}
+
+.create-account-page .create-account-form input:not(.input-readonly) {
+  background-color: #fff !important;
+  color: #000 !important;
+}
+
+.create-account-page .create-account-form .input-readonly {
+  background-color: #e0e0e0;
+  color: #000 !important;
+  cursor: not-allowed;
+}
+
+.create-account-form input::placeholder {
+  color: #888 !important;
 }
