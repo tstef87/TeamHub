@@ -1,0 +1,45 @@
+
+name: Check Filename Casing
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check-case:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Detect case-insensitive filename collisions
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import subprocess
+          from collections import defaultdict
+
+          paths = subprocess.check_output(
+              ["git", "ls-files", "-z"]
+          ).decode().split("\0")
+
+          seen = defaultdict(set)
+
+          for path in filter(None, paths):
+              parts = path.split("/")
+              for i in range(1, len(parts) + 1):
+                  name = "/".join(parts[:i])
+                  seen[name.casefold()].add(name)
+
+          errors = [names for names in seen.values()
+                    if len(names) > 1]
+
+          for names in errors:
+              print("Case collision:", sorted(names))
+
+          if errors:
+              raise SystemExit(1)
+
+          print("No filename casing collisions found.")
+          PY
+
