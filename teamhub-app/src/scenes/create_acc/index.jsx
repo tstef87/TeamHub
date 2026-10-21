@@ -1,249 +1,124 @@
-import React, { useState } from "react";
-import { Link, useNavigate} from "react-router-dom";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth, db } from "../../firebase";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import AuthLayout from "../../components/layout/AuthLayout";
+import Button from "../../components/ui/Button";
+import { PasswordField, TextField } from "../../components/ui/Field";
+import { cx } from "../../lib/format";
+
+const ROLE_OPTIONS = [
+  { value: "player", title: "Player", detail: "I'm on a team roster" },
+  { value: "follower", title: "Fan", detail: "I want to follow teams" },
+];
 
 export default function CreateAccount() {
   const navigate = useNavigate();
-
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [username, setUsername] = useState("");
+  const [form, setForm] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    username: "",
+    password: "",
+    confirmPassword: "",
+  });
+  const [role, setRole] = useState("follower");
   const [errors, setErrors] = useState({});
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  // TODO(backend): Add `const [busy, setBusy] = useState(false);` for the submit loading state,
+  // and pass `loading={busy}` to the <Button> below.
 
-  const handleCreateAccount = async (e) => {
+  const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
+
+  const handleSubmit = (e) => {
     e.preventDefault();
-    const normalizedEmail = email.trim().toLowerCase();
-    const normalizedUsername = username.trim().toLowerCase();
+    // TODO(backend): Swap in the shared helpers from the auth service:
+    // `normalizeEmail(form.email)` here and `isSjuEmail(email)` for the check below.
+    const email = form.email.trim().toLowerCase();
+    const username = form.username.trim().toLowerCase();
+    const next = {};
 
-    const newErrors = {};
+    if (!form.firstName.trim()) next.firstName = "First name is required.";
+    if (!form.lastName.trim()) next.lastName = "Last name is required.";
+    if (!email) next.email = "Email is required.";
+    else if (!email.endsWith("@sju.edu")) next.email = "Use your @sju.edu email address.";
+    if (!username) next.username = "Username is required.";
+    else if (!/^[a-z0-9._-]{3,20}$/.test(username))
+      next.username = "Use 3–20 letters, numbers, dots, dashes or underscores.";
+    if (!form.password) next.password = "Password is required.";
+    else if (form.password.length < 6) next.password = "Password must be at least 6 characters.";
+    if (!form.confirmPassword) next.confirmPassword = "Confirm your password.";
+    else if (form.password !== form.confirmPassword) next.confirmPassword = "Passwords don't match.";
 
-    if (!firstName) {
-        newErrors.firstName = "First name is required.";
-    }
+    setErrors(next);
+    if (Object.keys(next).length) return;
 
-    if (!lastName) {
-        newErrors.lastName = "Last name is required.";
-    }
-
-    if (!normalizedEmail) {
-        newErrors.email = "Email is required.";
-    } else if (!normalizedEmail.endsWith("@sju.edu")) {
-        newErrors.email = "Must use an @sju.edu email.";
-    }
-
-    if (!normalizedUsername) {
-        newErrors.username = "Username is required.";
-    }
-
-    if (!password) {
-        newErrors.password = "Password is required.";
-    } else if (password.length < 6) {
-        newErrors.password = "Password must be at least 6 characters.";
-    }
-
-    if (!confirmPassword) {
-        newErrors.confirmPassword = "Please confirm your password.";
-    } else if (password !== confirmPassword) {
-        newErrors.confirmPassword = "Passwords do not match.";
-    }
-
-    setErrors(newErrors);
-
-    if (Object.keys(newErrors).length > 0) {
-        return;
-    }
-
-    const usernameRef = doc(db, "usernames", normalizedUsername);
-    const usernameSnapshot = await getDoc(usernameRef);
-
-    if (usernameSnapshot.exists()) {
-      setErrors({
-        username: "That username has been taken."
-      });
-      return;
-    }
-
-    try {
-      const userCredential = await createUserWithEmailAndPassword(
-      auth,
-      normalizedEmail,
-      password
-    );
-
-    const user = userCredential.user;
-
-    await setDoc(doc(db, "usernames", normalizedUsername), {
-        uid: user.uid
-    });
-
-    await setDoc(doc(db, "users", user.uid), {
-        firstName: firstName.trim(),
-        lastName: lastName.trim(),
-        email: normalizedEmail,
-        username: normalizedUsername
-    });
-
-    console.log("Account created:", user);
-
-    navigate("/");
-
-    } catch (error) {
-    console.error(error);
-
-    if (error.code === "auth/weak-password") {
-        setErrors({
-        password: "Password must be at least 6 characters."
-        });
-    } else if (error.code === "auth/email-already-in-use") {
-        setErrors({
-        email: "That email is already in use."
-        });
-    } else {
-        setErrors({
-        firebase: "Unable to create account. Please try again."
-        });
-    }
-}
+    // TODO(backend): Replace this with the real sign-up flow (make handleSubmit async):
+    //   setBusy(true);
+    //   try {
+    //     // 1. Check the username is available; if taken, show the error and stop:
+    //     //    if (await usernameTaken(username)) {
+    //     //      setErrors({ username: "That username is taken. Try another." });
+    //     //      return;
+    //     //    }
+    //     // 2. Create the account (Firebase Auth + user profile document):
+    //     //    await createAccount({ ...form, email, username, role });
+    //     // 3. Then navigate on success.
+    //     navigate("/", { replace: true });
+    //   } catch (err) {
+    //     // 4. Map server errors onto the form using authErrorMessage(code):
+    //     //    "auth/email-already-in-use" -> errors.email
+    //     //    "auth/weak-password"        -> errors.password
+    //     //    anything else               -> errors.form ("Couldn't create your account. Please try again.")
+    //   } finally {
+    //     setBusy(false);
+    //   }
+    navigate("/", { replace: true });
   };
 
   return (
-  <div className="create-account-page">
-    <div className="create-account-container">
-
-      <h1>CREATE ACCOUNT</h1>
-
-      <form
-        className="create-account-form"
-        onSubmit={handleCreateAccount}
-      >
-
-        {/* First Name Field */}
-        <div className="form-field">
-            <input
-                type="text"
-                placeholder="First Name"
-                value={firstName}
-                onChange={(e) => setFirstName(e.target.value)}
-                className={errors.firstName ? "input-error" : ""}
-            />
-            {errors.firstName && (<p className="error-message">{errors.firstName}</p>)}
-        </div>
-
-        {/* Last Name Field */}
-        <div className="form-field">
-            <input
-                type="text"
-                placeholder="Last Name"
-                value={lastName}
-                onChange={(e) => setLastName(e.target.value)}
-                className={errors.lastName ? "input-error" : ""}
+    <AuthLayout title="Create your account" subtitle="TeamHub is open to anyone with an @sju.edu email.">
+      <form onSubmit={handleSubmit} noValidate className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+        <TextField label="First name" autoComplete="given-name" value={form.firstName} onChange={set("firstName")} error={errors.firstName} />
+        <TextField label="Last name" autoComplete="family-name" value={form.lastName} onChange={set("lastName")} error={errors.lastName} />
+        <TextField
+          wrapperClassName="sm:col-span-2"
+          label="SJU email"
+          type="email"
+          autoComplete="email"
+          placeholder="you@sju.edu"
+          value={form.email}
+          onChange={set("email")}
+          error={errors.email}
         />
-            {errors.lastName && (<p className="error-message">{errors.lastName}</p>)}
-        </div>
-
-        {/* Email Field */}
-        <div className="form-field full-width">
-            <input
-                type="email"
-                placeholder="SJU Email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className={errors.email ? "input-error" : ""}
-            />
-            {errors.email && (<p className="error-message">{errors.email}</p>)}
-        </div>
-
-        {/* Username Field */}
-        <div className="form-field full-width">
-        <input
-            type="text"
-            placeholder="Username"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            className={errors.username ? "input-error" : ""}
+        <TextField
+          wrapperClassName="sm:col-span-2"
+          label="Username"
+          autoComplete="username"
+          value={form.username}
+          onChange={set("username")}
+          error={errors.username}
+        />
+        <PasswordField label="Password" autoComplete="new-password" value={form.password} onChange={set("password")} error={errors.password} />
+        <PasswordField
+          label="Confirm password"
+          autoComplete="new-password"
+          value={form.confirmPassword}
+          onChange={set("confirmPassword")}
+          error={errors.confirmPassword}
         />
 
-        {errors.username && (
-            <p className="error-message">
-            {errors.username}
-            </p>
-        )}
-        </div>
+        {/* TODO(backend): Render a general server error here when `errors.form` is set,
+            e.g. <FormAlert>{errors.form}</FormAlert> (import FormAlert from Field). */}
 
-        {/* Password Field */}
-        <div className="form-field">
-            <div className="password-input-wrapper">
-                <input
-                    type={showPassword ? "text" : "password"}
-                    placeholder="Password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    className={errors.password ? "input-error" : ""}
-
-                />
-
-                <button
-                    type="button"
-                    className="password-toggle"
-                    onClick={() => setShowPassword(!showPassword)}
-                >
-                    {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-            </div>
-
-            {errors.password && (
-                <p className="error-message">{errors.password}</p>
-            )}
-        </div>
-
-        {/* Confirm Password Field */}
-        <div className="form-field">
-            <div className="password-input-wrapper">
-                <input
-                    type={showConfirmPassword ? "text" : "password"}
-                    placeholder="Confirm Password"
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    className={errors.confirmPassword ? "input-error" : ""}
-                    autoComplete="new-password"
-                />
-
-                <button
-                    type="button"
-                    className="password-toggle"
-                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                    aria-label={
-                        showConfirmPassword
-                            ? "Hide confirm password"
-                            : "Show confirm password"
-                    }
-                >
-                    {showConfirmPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
-            </div>
-
-            {errors.confirmPassword && (
-                <p className="error-message">{errors.confirmPassword}</p>
-            )}
-        </div>
-
-        {errors.firebase && (<p className="error-message">{errors.firebase}</p>)}
-
-        <button type="submit" className="create-account-button">CREATE ACCOUNT</button>
+        <Button type="submit" size="lg" className="w-full sm:col-span-2">
+          Create account
+        </Button>
       </form>
-      <p className="login-link">
+
+      <p className="mt-8 text-center text-sm text-muted">
         Already have an account?{" "}
-        <Link to="/Login">Log In</Link>
+        <Link to="/Login" className="font-semibold text-crimson-ink hover:underline">
+          Log in
+        </Link>
       </p>
-    </div>
-  </div>
+    </AuthLayout>
   );
 }
