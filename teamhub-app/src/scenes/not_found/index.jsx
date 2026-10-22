@@ -1,11 +1,15 @@
-import { Link } from "react-router-dom";
+import { ButtonLink } from "../../components/ui/Button";
+import { SjuMark } from "../../components/ui/misc";
 
 export default function NotFound() {
   return (
-    <main style={{ textAlign: "center", marginTop: "4rem" }}>
-      <h1>Page not found</h1>
-      <p>The page you're looking for doesn't exist or has moved.</p>
-      <Link to="/">Back to home</Link>
+    <main className="flex min-h-dvh flex-col items-center justify-center px-4 text-center">
+      <SjuMark className="mb-8 w-16 opacity-90" />
+      <h1 className="text-[32px] font-semibold">Page not found</h1>
+      <p className="mt-2 max-w-sm text-muted">The page you're looking for doesn't exist or has moved.</p>
+      <ButtonLink to="/" className="mt-6">
+        Go to home
+      </ButtonLink>
     </main>
   );
 }

@@ -1,174 +1,121 @@
-import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import {
-  sendPasswordResetEmail,
-  signInWithEmailAndPassword
-} from "firebase/auth";
-import { auth } from "../../firebase";
-import { Eye, EyeOff } from "lucide-react";
+import { useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import AuthLayout from "../../components/layout/AuthLayout";
+import Button from "../../components/ui/Button";
+import { FormAlert, PasswordField, TextField } from "../../components/ui/Field";
 
 export default function Login() {
   const navigate = useNavigate();
-  
+  const location = useLocation();
+  const from = location.state?.from ?? "/";
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({});
-  const [showPassword, setShowPassword] = useState(false);
+  const [notice, setNotice] = useState("");
+  // TODO(backend): Add `const [busy, setBusy] = useState(false);` for the submit loading state,
+  // and pass `loading={busy}` to the <Button> below.
 
-  const handleLogin = async (e) => {
-  e.preventDefault();
+  // TODO(backend): If the user is already signed in, redirect them instead of showing the form:
+  //   const { user } = useAuth();
+  //   if (user) return <Navigate to={from} replace />;
+  // (import Navigate from react-router-dom and useAuth from context/AuthContext).
+  // Place it after all the hooks so the hook order stays the same.
 
-  const newErrors = {};
+  const validateEmail = () => {
+    // TODO(backend): Swap in the shared helpers from the auth service:
+    // `normalizeEmail(email)` and `isSjuEmail(e)`.
+    const e = email.trim().toLowerCase();
+    if (!e) return "Email is required.";
+    if (!e.endsWith("@sju.edu")) return "Use your @sju.edu email address.";
+  };
 
-  const normalizedEmail = email.trim().toLowerCase();
+  const handleLogin = (e) => {
+    e.preventDefault();
+    setNotice("");
+    const next = {};
+    const emailError = validateEmail();
+    if (emailError) next.email = emailError;
+    if (!password) next.password = "Password is required.";
+    setErrors(next);
+    if (Object.keys(next).length) return;
 
-  if (!normalizedEmail) {
-    newErrors.email = "Email is required.";
-  } else if (!normalizedEmail.endsWith("@sju.edu")) {
-    newErrors.email = "You must use an SJU email address.";
-  }
+    // TODO(backend): Replace this with the real sign-in (make handleLogin async):
+    //   setBusy(true);
+    //   try {
+    //     await signIn(email, password);
+    //     navigate(from, { replace: true });
+    //   } catch (err) {
+    //     // Show the server error in the form alert:
+    //     setErrors({ form: authErrorMessage(err.code) });
+    //   } finally {
+    //     setBusy(false);
+    //   }
+    navigate(from, { replace: true });
+  };
 
-  if (!password) {
-    newErrors.password = "Password is required.";
-  }
-
-  setErrors(newErrors);
-
-  if (Object.keys(newErrors).length > 0) {
-    return;
-  }
-
-  try {
-    await signInWithEmailAndPassword(
-      auth,
-      normalizedEmail,
-      password
-    );
-
-    navigate("/");
-  } catch (error) {
-    console.error(error);
-
-    if (
-      error.code === "auth/invalid-credential" ||
-      error.code === "auth/wrong-password" ||
-      error.code === "auth/user-not-found"
-    ) {
-      setErrors({
-        firebase: "Incorrect email or password."
-      });
-    } else {
-      setErrors({
-        firebase: "Unable to log in. Please try again."
-      });
+  const handleForgotPassword = () => {
+    setNotice("");
+    const emailError = validateEmail();
+    if (emailError) {
+      setErrors({ email: emailError === "Email is required." ? "Enter your email address first." : emailError });
+      return;
     }
-  }
-};
-const handleForgotPassword = async () => {
-  const normalizedEmail = email.trim().toLowerCase();
-
-  if (!normalizedEmail) {
-    setErrors({
-      email: "Enter your email address first."
-    });
-    return;
-  }
-
-  if (!normalizedEmail.endsWith("@sju.edu")) {
-    setErrors({
-      email: "You must use an SJU email address."
-    });
-    return;
-  }
-
-  try {
-    await sendPasswordResetEmail(auth, normalizedEmail);
-
-    setErrors({
-      firebase: "Password reset email sent. Check your email for instructions."
-    });
-  } catch (error) {
-    console.error(error);
-
-    setErrors({
-      firebase: "Unable to send password reset email. Please try again."
-    });
-  }
-};
+    // TODO(backend): Send the password reset email (make handleForgotPassword async):
+    //   try {
+    //     await resetPassword(email);
+    //     setErrors({});
+    //     setNotice("Password reset email sent. Check your SJU inbox for the link.");
+    //   } catch (err) {
+    //     console.error(err);
+    //     setErrors({ form: "Couldn't send the reset email. Please try again." });
+    //   }
+    setErrors({});
+  };
 
   return (
-  <div className="login-page">
-    <div className="login-container">
-
-      <h1>LOGIN</h1>
-
-      <form
-        className="login-form"
-        onSubmit={handleLogin}
-      >
-
-        <div className="form-field">
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            className={errors.email ? "input-error" : ""}
-          />
-
-          {errors.email && (
-            <p className="error-message">
-              {errors.email}
-            </p>
-          )}
-        </div>
-
-        <div className="password-input-wrapper">
-          <input
-            type={showPassword ? "text" : "password"}
-            placeholder="Password"
+    <AuthLayout title="Log in" subtitle="Use your SJU email and TeamHub password.">
+      <form onSubmit={handleLogin} noValidate className="flex flex-col gap-5">
+        <TextField
+          label="SJU email"
+          type="email"
+          autoComplete="email"
+          placeholder="you@sju.edu"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          error={errors.email}
+        />
+        <div className="flex flex-col gap-2">
+          <PasswordField
+            label="Password"
+            autoComplete="current-password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className={errors.password ? "input-error" : ""}
+            error={errors.password}
           />
-
           <button
             type="button"
-            className="password-toggle"
-            onClick={() => setShowPassword(!showPassword)}
-            aria-label={showPassword ? "Hide password" : "Show password"}
+            onClick={handleForgotPassword}
+            className="self-end text-sm font-medium text-crimson-ink hover:underline"
           >
-            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            Forgot password?
           </button>
         </div>
 
-        {errors.firebase && (<p className="error-message">{errors.firebase}</p>)}
+        {errors.form && <FormAlert>{errors.form}</FormAlert>}
+        {notice && <FormAlert tone="success">{notice}</FormAlert>}
 
-        <button
-          type="submit"
-          className="login-button"
-        >
-          LOG IN
-        </button>
-
-        <button
-          type="button"
-          onClick={handleForgotPassword}
-          className="forgot-password-link"
-        >
-          Forgot Password?
-        </button>
-
+        <Button type="submit" size="lg" className="mt-1 w-full">
+          Log in
+        </Button>
       </form>
 
-      <p className="create-account-link">
-        Don't have an account?{" "}
-        <Link to="/Create-Account">
-          Create Account
+      <p className="mt-8 text-center text-sm text-muted">
+        New to TeamHub?{" "}
+        <Link to="/Create-Account" className="font-semibold text-crimson-ink hover:underline">
+          Create an account
         </Link>
       </p>
-
-    </div>
-  </div>
+    </AuthLayout>
   );
 }
