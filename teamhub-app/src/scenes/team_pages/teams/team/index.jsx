@@ -5,18 +5,15 @@ import Button from "../../../../components/ui/Button";
 import { FormAlert, TextAreaField, TextField } from "../../../../components/ui/Field";
 import Icon from "../../../../components/ui/Icon";
 import { Avatar, EmptyState } from "../../../../components/ui/misc";
-import { AnnouncementCard, EventItem } from "../../../../components/team/TeamBits";
+import { AnnouncementCard } from "../../../../components/team/TeamBits";
 import { activityName } from "../../../../lib/activities";
 import { cx } from "../../../../lib/format";
 import { getTeam } from "../../../../firestore/Teams";
-import { db } from "../../../../firebase";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import Schedule from "../../../../components/team/Events";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const now = Date.now();
-
-const PAGE_SIZE = 5;
 
 const role = "coach"; // Change to "player" to hide the post and pin controls.
 const me = { uid: "me", name: "Alex Johnson" };
@@ -218,7 +215,8 @@ export default function TeamPage() {
             onTogglePin={handleTogglePin}
           />
         )}
-        {tab === "schedule" && <Schedule teamId={teamId} />}
+        {/* TODO(backend): replace with a real team-admin check, e.g. team.admins?.includes(user.uid) */}
+        {tab === "schedule" && <Schedule teamId={teamId} canManage={role === "coach"} />}
         {tab === "roster" && <Roster roster={SAMPLE_ROSTER} me={me} />}
         {tab === "about" && (
           <div className="max-w-prose">
@@ -305,74 +303,6 @@ function Composer({ onPost }) {
         <Button type="submit">Post announcement</Button>
       </div>
     </form>
-  );
-}
-
-function Schedule({ teamId }) {
-  const [events, setEvents] = useState(null); // null = still loading
-  const [showPast, setShowPast] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-
-  useEffect(() => {
-    if (!teamId) return;
-    const q = query(collection(db, "teams", teamId, "events"), orderBy("start"));
-    const unsub = onSnapshot(
-      q,
-      (snap) => setEvents(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
-      (err) => {
-        console.error("events listener failed:", err);
-        setEvents([]);
-      }
-    );
-    return unsub;
-  }, [teamId]);
-
-  if (events === null) return <p className="text-muted">Loading schedule…</p>;
-  if (events.length === 0) return <p className="text-muted">No Planned Events</p>;
-
-  const current = Date.now();
-  const upcoming = events.filter((e) => new Date(e.end ?? e.start).getTime() >= current);
-  const past = events.filter((e) => new Date(e.end ?? e.start).getTime() < current).reverse();
-
-  const visibleUpcoming = upcoming.slice(0, visibleCount);
-  const remaining = upcoming.length - visibleUpcoming.length;
-
-  return (
-    <div className="max-w-3xl">
-      {upcoming.length ? (
-        <>
-          <ul className="flex flex-col gap-3">
-            {visibleUpcoming.map((e) => (
-              <EventItem key={e.id ?? e.start} event={e} />
-            ))}
-          </ul>
-          {remaining > 0 && (
-            <button
-              onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
-              className="mt-4 text-sm font-semibold text-crimson-ink hover:underline"
-            >
-              View more ({Math.min(PAGE_SIZE, remaining)} more)
-            </button>
-          )}
-        </>
-      ) : (
-        <p className="text-muted">No upcoming events.</p>
-      )}
-      {past.length > 0 && (
-        <div className="mt-8">
-          <button onClick={() => setShowPast((s) => !s)} className="text-sm font-semibold text-crimson-ink hover:underline" aria-expanded={showPast}>
-            {showPast ? "Hide past events" : `Show ${past.length} past ${past.length === 1 ? "event" : "events"}`}
-          </button>
-          {showPast && (
-            <ul className="mt-3 flex flex-col gap-3 opacity-75">
-              {past.map((e) => (
-                <EventItem key={e.id ?? e.start} event={e} />
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-    </div>
   );
 }
 
