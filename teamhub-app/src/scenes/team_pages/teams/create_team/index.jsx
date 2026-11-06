@@ -3,17 +3,20 @@ import { useNavigate } from "react-router-dom";
 import Button from "../../../../components/ui/Button";
 import { TextAreaField, TextField, inputClass } from "../../../../components/ui/Field";
 import Icon from "../../../../components/ui/Icon";
-import { EmptyState, PageHeader } from "../../../../components/ui/misc";
+import { PageHeader } from "../../../../components/ui/misc";
 import CalendarUpload from "../../../../components/team/CalendarUpload";
 import { SCHOOL_CLUBS, SPORTS_TEAMS } from "../../../../lib/activities";
 import { cx } from "../../../../lib/format";
+import { createTeam, teamNameExists } from "../../../../firestore/Teams";
 
+// Validate Email
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-// TODO(backend): Remove this placeholder and read the real role from the auth context:
-//   const { user, role } = useAuth();
-// (`user.uid` is also needed below as the team's ownerId.)
-const role = "coach";
+const splitEmails = (raw) =>
+  raw
+    .split(/[\s,;]+/)
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
 
 export default function CreateTeam() {
   const navigate = useNavigate();
@@ -21,25 +24,14 @@ export default function CreateTeam() {
   const [description, setDescription] = useState("");
   const [activityType, setActivityType] = useState("sport");
   const [activity, setActivity] = useState("");
-  const [events, setEvents] = useState([]);
+  const [calendarEvents, setCalendarEvents] = useState([]);
   const [members, setMembers] = useState([]);
   const [memberDraft, setMemberDraft] = useState("");
   const [errors, setErrors] = useState({});
-  // TODO(backend): Add `const [saving, setSaving] = useState(false);` for the submit loading state,
-  // and pass `loading={saving}` to the "Create team" <Button> below.
+  const [saving, setSaving] = useState(false);
 
-  if (role !== "coach")
-    return (
-      <EmptyState icon="shield" title="Only coaches can create teams">
-        Ask a TeamHub admin to give your account coach access.
-      </EmptyState>
-    );
-
-  const splitEmails = (raw) =>
-    raw
-      .split(/[\s,;]+/)
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean);
+  // Options for the activity <select>. Assumes each entry is { id, name }.
+  const options = activityType === "sport" ? SPORTS_TEAMS : SCHOOL_CLUBS;
 
   const addMember = (raw) => {
     const emails = splitEmails(raw);
@@ -57,58 +49,72 @@ export default function CreateTeam() {
     }
   };
 
-  const validate = (memberList) => {
+  const validate = async (memberList, trimmedName) => {
     const next = {};
-    if (!name.trim()) next.name = "Team name is required.";
-    else if (name.trim().length < 3) next.name = "Use at least 3 characters.";
-    // TODO(backend): Make validate async and add the duplicate-name check:
-    //   else if (await teamNameExists(name)) next.name = "A team with that name already exists.";
+    // Team Name Checks
+    if (!trimmedName) next.name = "Team name is required";
+    else if (trimmedName.length < 3) next.name = "Use at least 3 characters";
+    else if (trimmedName.length > 32) next.name = "Use 32 characters or fewer";
+    else if (await teamNameExists(trimmedName)) next.name = "A team with that name already exists";
+    // Description Check
     if (!description.trim()) next.description = "Add a short description.";
+    // Activity Check
     if (!activity) next.activity = activityType === "sport" ? "Choose a sport." : "Choose a club type.";
-    const bad = memberList.filter((m) => !EMAIL_RE.test(m));
-    if (bad.length) next.members = `Fix or remove: ${bad.join(", ")}`;
+    // Member Check
+    const badEmails = memberList.filter((m) => !EMAIL_RE.test(m));
+    if (badEmails.length) {
+      next.members = `Invalid email: ${badEmails.join(", ")}`;
+    }
     return next;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Include anything typed but not yet turned into a chip.
-    const allMembers = [...new Set([...members, ...splitEmails(memberDraft)])];
-    setMembers(allMembers);
-    setMemberDraft("");
-    const next = validate(allMembers);
-    setErrors(next);
-    if (Object.keys(next).length) return;
+    setSaving(true);
+    try {
+      const trimmedName = name.trim();
+      // Include any half-typed email still in the input box.
+      const finalMembers = [...new Set([...members, ...splitEmails(memberDraft)])];
+      setMembers(finalMembers);
+      setMemberDraft("");
 
-    // TODO(backend): Replace this with the real save (make handleSubmit async):
-    //   setSaving(true);
-    //   try {
-    //     // (run validate here with `await`, since it checks teamNameExists)
-    //     // 1. Create the team and get its id back:
-    //     //    const id = await createTeam({
-    //     //      name, description, org_cat: activityType, org: activity, events, ownerId: user?.uid,
-    //     //    });
-    //     // 2. Save the invited player emails to the team's roster:
-    //     //    await addRosterInvites(id, allMembers);
-    //     // 3. Go to the new team page:
-    //     //    navigate(`/teams/${id}`);
-    //   } catch (err) {
-    //     console.error(err);
-    //     setErrors({ form: err instanceof Error ? err.message : "Couldn't create the team." });
-    //   } finally {
-    //     setSaving(false);
-    //   }
-    navigate("/Teams");
+      const next = await validate(finalMembers, trimmedName);
+      setErrors(next);
+      if (Object.keys(next).length) {
+        setSaving(false);
+        return;
+      }
+
+      await createTeam({
+        name: trimmedName,
+        description: description.trim(),
+        org_cat: activityType,
+        org: activity,
+        events: calendarEvents,
+        members: finalMembers,
+      });
+      navigate("/Teams");
+    } catch (err) {
+      console.error(err);
+      setErrors({ form: err.message });
+      setSaving(false);
+    }
   };
-
-  const options = activityType === "sport" ? SPORTS_TEAMS : SCHOOL_CLUBS;
 
   return (
     <div className="max-w-2xl">
       <PageHeader title="Create a team" description="Set up the team page. You can add your schedule and invite players now or later." />
 
       <form onSubmit={handleSubmit} noValidate className="flex flex-col gap-6 rounded-2xl border border-line bg-surface p-5 sm:p-8">
-        <TextField label="Team name" value={name} onChange={(e) => setName(e.target.value)} error={errors.name} placeholder="e.g. SJU Club Ice Hockey" autoFocus />
+        <TextField 
+          label="Team name" 
+          value={name} 
+          onChange={(e) => setName(e.target.value)} 
+          maxLength={32}
+          error={errors.name} 
+          placeholder="e.g. SJU Club Ice Hockey" autoFocus 
+          hint={`${name.length}/32`}
+        />
 
         <TextAreaField
           label="Description"
@@ -171,7 +177,7 @@ export default function CreateTeam() {
           </div>
         </fieldset>
 
-        <CalendarUpload onEventsParsed={setEvents} onClear={() => setEvents([])} />
+        <CalendarUpload onEventsParsed={setCalendarEvents} onClear={() => setCalendarEvents([])} />
 
         <div className="flex flex-col gap-1.5">
           <label htmlFor="members" className="text-sm font-medium">
@@ -214,14 +220,19 @@ export default function CreateTeam() {
           )}
         </div>
 
-        {/* TODO(backend): Show a general server error here when `errors.form` is set,
-            e.g. <FormAlert>{errors.form}</FormAlert> (import FormAlert from Field). */}
+        {errors.form && (
+          <p role="alert" className="text-[13px] font-medium text-danger">
+            {errors.form}
+          </p>
+        )}
 
         <div className="flex justify-end gap-2 border-t border-line pt-5">
-          <Button variant="ghost" onClick={() => navigate(-1)}>
+          <Button type="button" variant="ghost" onClick={() => navigate(-1)}>
             Cancel
           </Button>
-          <Button type="submit">Create team</Button>
+          <Button type="submit" variant="contained" disabled={saving}>
+            {saving ? "Creating..." : "Create team"}
+          </Button>
         </div>
       </form>
     </div>

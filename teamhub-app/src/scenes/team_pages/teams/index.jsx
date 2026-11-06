@@ -1,29 +1,17 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ButtonLink } from "../../../components/ui/Button";
 import Icon from "../../../components/ui/Icon";
-import { EmptyState, PageHeader } from "../../../components/ui/misc";
+import { EmptyState, PageHeader, Spinner } from "../../../components/ui/misc";
 import { TeamRow } from "../../../components/team/TeamBits";
 import { activityName } from "../../../lib/activities";
 import { cx } from "../../../lib/format";
+import { getTeams } from "../../../firestore/Teams";
 
-// TODO(backend): Remove the sample data below and load the real values instead.
-// Original flow (using useAuth, useAsync and services/teams):
+// TODO(auth): Once useAuth is back, replace the two placeholders below with:
 //   const { profile, role } = useAuth();
-//   const { data: teams, loading, error } = useAsync(listTeams, []);
 //   const followed = useMemo(() => new Set(profile?.followedTeams ?? []), [profile]);
-// Also restore the loading and error states in the list area:
-//   loading -> <Spinner /> (import from ui/misc)
-//   error   -> <EmptyState icon="x" title="Couldn't load teams">{error}</EmptyState>
-const role = "player"; // Change to "coach" to preview the "Create team" button.
-
-const teams = [
-  { id: "ice-hockey", name: "SJU Club Ice Hockey", org_cat: "sport", org: "ice-hockey", followers: 42 },
-  { id: "lacrosse", name: "SJU Club Lacrosse", org_cat: "sport", org: "lacrosse", followers: 1 },
-  { id: "film", name: "SJU Film Society", org_cat: "club", org: "film", followers: 18 },
-  { id: "robotics", name: "SJU Robotics", org_cat: "club", org: "engineering-robotics", followers: 0 },
-];
-
-const followed = new Set(["ice-hockey", "film"]);
+const role = "coach"; // placeholder: always show the Create team button
+const followed = new Set(); // placeholder: nobody follows anything yet
 
 const FILTERS = [
   { id: "all", label: "All" },
@@ -33,8 +21,29 @@ const FILTERS = [
 ];
 
 export default function Teams() {
+  const [teams, setTeams] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+
+  useEffect(() => {
+    let cancelled = false;
+    getTeams()
+      .then((list) => {
+        if (!cancelled) setTeams(list);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const visible = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -51,7 +60,7 @@ export default function Teams() {
           activityName(t.org_cat, t.org).toLowerCase().includes(term),
       )
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [search, filter]);
+  }, [teams, search, filter]);
 
   return (
     <>
@@ -97,7 +106,13 @@ export default function Teams() {
         </div>
       </div>
 
-      {visible.length ? (
+      {loading ? (
+        <Spinner />
+      ) : error ? (
+        <EmptyState icon="x" title="Couldn't load teams">
+          {error}
+        </EmptyState>
+      ) : visible.length ? (
         <ul className="flex flex-col gap-3">
           {visible.map((t) => (
             <li key={t.id}>

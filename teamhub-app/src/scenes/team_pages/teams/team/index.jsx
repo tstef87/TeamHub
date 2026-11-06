@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import markWhite from "../../../../assets/brand/sju-mark-white.png";
 import Button from "../../../../components/ui/Button";
 import { FormAlert, TextAreaField, TextField } from "../../../../components/ui/Field";
@@ -8,38 +8,18 @@ import { Avatar, EmptyState } from "../../../../components/ui/misc";
 import { AnnouncementCard, EventItem } from "../../../../components/team/TeamBits";
 import { activityName } from "../../../../lib/activities";
 import { cx } from "../../../../lib/format";
-
-// TODO(backend): Remove all of the sample data below and load the real data instead.
-// Original services and what each one did:
-//   const { teamId } = useParams();                          // which team page this is
-//   const { user, profile, role, displayName } = useAuth();   // who is signed in
-//   getTeam(teamId)                                          // the team (name, description, org, followers)
-//   followTeam(uid, teamId) / unfollowTeam(uid, teamId)      // follow button
-//   getAnnouncements(teamId)                                 // Updates tab
-//   postAnnouncement(teamId, { title, body, pinned, authorId, authorName })
-//   setAnnouncementPinned(teamId, announcementId, pinned)    // pin toggle (reload if it fails)
-//   getTeamEvents(teamId)                                    // Schedule tab
-//   getRoster(teamId)                                        // Roster tab
-//   openDirectConversation(me, other)                        // "Message" button, returns a conversation id
-// Each tab loaded its own data with useAsync, so restore the <Spinner /> and the error <FormAlert />
-// for loading and error states. Also restore the "Couldn't load this team" and "Team not found"
-// screens at the top of <TeamPage />.
+import { getTeam } from "../../../../firestore/Teams";
+import { db } from "../../../../firebase";
+import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const now = Date.now();
 
+const PAGE_SIZE = 5;
+
 const role = "coach"; // Change to "player" to hide the post and pin controls.
 const me = { uid: "me", name: "Alex Johnson" };
-
-const SAMPLE_TEAM = {
-  id: "ice-hockey",
-  name: "SJU Club Ice Hockey",
-  description: "Club ice hockey at Saint Joseph's University.\nWe practice twice a week and play a regional schedule.",
-  org_cat: "sport",
-  org: "ice-hockey",
-  followers: 42,
-};
 
 const SAMPLE_ANNOUNCEMENTS = [
   {
@@ -105,15 +85,45 @@ const TABS = [
 ];
 
 export default function TeamPage() {
+  const { teamId } = useParams();
+  const navigate = useNavigate();
+  const [team, setTeam] = useState(null);
   const [tab, setTab] = useState("updates");
   const [isFollowing, setIsFollowing] = useState(false);
-  const [followers, setFollowers] = useState(SAMPLE_TEAM.followers);
+  const [followers, setFollowers] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [announcements, setAnnouncements] = useState(SAMPLE_ANNOUNCEMENTS);
   // TODO(backend): Add `const [followBusy, setFollowBusy] = useState(false);` and disable the follow
   // button while it's saving.
 
-  const t = { ...SAMPLE_TEAM, followers };
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
 
+    getTeam(teamId)
+      .then((t) => {
+        if (cancelled) return;
+        if (!t) {
+          navigate("*", { replace: true });
+          return;
+        }
+        setTeam(t);
+        setFollowers(t.followers ?? 0);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) setError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId, navigate]);
+  
   // TODO(backend): Replace with followTeam(user.uid, t.id) / unfollowTeam(user.uid, t.id) inside a
   // try/catch, and read `isFollowing` from `profile.followedTeams.includes(teamId)` instead of state.
   const toggleFollow = () => {
@@ -136,6 +146,10 @@ export default function TeamPage() {
     setAnnouncements((list) => list.map((a) => (a.id === id ? { ...a, pinned } : a)));
   };
 
+  if (loading) return <p className="p-6 text-muted">Loading…</p>;
+  if (error) return <FormAlert>{error}</FormAlert>;
+  if (!team) return null; // redirect in progress
+
   return (
     <>
       <Link to="/Teams" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
@@ -151,15 +165,15 @@ export default function TeamPage() {
           className="pointer-events-none absolute -right-6 -top-8 w-56 opacity-[0.06] sm:w-72"
         />
         <p className="relative text-sm font-medium text-white/70">
-          {activityName(t.org_cat, t.org)}
-          {t.org_cat === "club" ? " club" : ""}, Saint Joseph's University
+          {activityName(team.org_cat, team.org)}
+          {team.org_cat === "club" ? " club" : ""}, Saint Joseph's University
         </p>
         <h1 className="relative mt-1 max-w-3xl font-serif text-[36px] leading-[1.1] font-semibold text-white sm:text-[52px]">
-          {t.name}
+          {team.name}
         </h1>
         <div className="relative mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
           <p className="text-sm text-white/80">
-            <span className="font-semibold tabular-nums text-white">{t.followers ?? 0}</span> {t.followers === 1 ? "fan" : "fans"}
+            <span className="font-semibold tabular-nums text-white">{team.followers ?? 0}</span> {team.followers === 1 ? "fan" : "fans"}
           </p>
           <button
             onClick={toggleFollow}
@@ -204,12 +218,12 @@ export default function TeamPage() {
             onTogglePin={handleTogglePin}
           />
         )}
-        {tab === "schedule" && <Schedule events={SAMPLE_EVENTS} />}
+        {tab === "schedule" && <Schedule teamId={teamId} />}
         {tab === "roster" && <Roster roster={SAMPLE_ROSTER} me={me} />}
         {tab === "about" && (
           <div className="max-w-prose">
             <h2 className="mb-2 text-xl font-semibold">About the team</h2>
-            <p className="whitespace-pre-line text-ink/90">{t.description || "This team hasn't added a description yet."}</p>
+            <p className="whitespace-pre-line text-ink/90">{team.description || "This team hasn't added a description yet."}</p>
           </div>
         )}
       </div>
@@ -294,28 +308,53 @@ function Composer({ onPost }) {
   );
 }
 
-function Schedule({ events }) {
+function Schedule({ teamId }) {
+  const [events, setEvents] = useState(null); // null = still loading
   const [showPast, setShowPast] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  useEffect(() => {
+    if (!teamId) return;
+    const q = query(collection(db, "teams", teamId, "events"), orderBy("start"));
+    const unsub = onSnapshot(
+      q,
+      (snap) => setEvents(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
+      (err) => {
+        console.error("events listener failed:", err);
+        setEvents([]);
+      }
+    );
+    return unsub;
+  }, [teamId]);
+
+  if (events === null) return <p className="text-muted">Loading schedule…</p>;
+  if (events.length === 0) return <p className="text-muted">No Planned Events</p>;
 
   const current = Date.now();
   const upcoming = events.filter((e) => new Date(e.end ?? e.start).getTime() >= current);
   const past = events.filter((e) => new Date(e.end ?? e.start).getTime() < current).reverse();
 
-  if (!events.length)
-    return (
-      <EmptyState icon="calendar" title="No schedule yet">
-        Coaches can add games and practices by uploading a calendar file when they create the team.
-      </EmptyState>
-    );
+  const visibleUpcoming = upcoming.slice(0, visibleCount);
+  const remaining = upcoming.length - visibleUpcoming.length;
 
   return (
     <div className="max-w-3xl">
       {upcoming.length ? (
-        <ul className="flex flex-col gap-3">
-          {upcoming.map((e) => (
-            <EventItem key={e.id ?? e.start} event={e} />
-          ))}
-        </ul>
+        <>
+          <ul className="flex flex-col gap-3">
+            {visibleUpcoming.map((e) => (
+              <EventItem key={e.id ?? e.start} event={e} />
+            ))}
+          </ul>
+          {remaining > 0 && (
+            <button
+              onClick={() => setVisibleCount((n) => n + PAGE_SIZE)}
+              className="mt-4 text-sm font-semibold text-crimson-ink hover:underline"
+            >
+              View more ({Math.min(PAGE_SIZE, remaining)} more)
+            </button>
+          )}
+        </>
       ) : (
         <p className="text-muted">No upcoming events.</p>
       )}
