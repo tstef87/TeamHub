@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+
+import { auth, db } from "../../firebase";
 import AuthLayout from "../../components/layout/AuthLayout";
 import Button from "../../components/ui/Button";
-import { PasswordField, TextField } from "../../components/ui/Field";
-import { cx } from "../../lib/format";
+import { PasswordField, TextField, FormAlert } from "../../components/ui/Field";
 
 const ROLE_OPTIONS = [
   { value: "player", title: "Player", detail: "I'm on a team roster" },
@@ -22,55 +25,91 @@ export default function CreateAccount() {
   });
   const [role, setRole] = useState("follower");
   const [errors, setErrors] = useState({});
-  // TODO(backend): Add `const [busy, setBusy] = useState(false);` for the submit loading state,
-  // and pass `loading={busy}` to the <Button> below.
+  const [busy, setBusy] = useState(false);
 
   const set = (key) => (e) => setForm((f) => ({ ...f, [key]: e.target.value }));
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // TODO(backend): Swap in the shared helpers from the auth service:
-    // `normalizeEmail(form.email)` here and `isSjuEmail(email)` for the check below.
+    
     const email = form.email.trim().toLowerCase();
     const username = form.username.trim().toLowerCase();
     const next = {};
 
-    if (!form.firstName.trim()) next.firstName = "First name is required.";
-    if (!form.lastName.trim()) next.lastName = "Last name is required.";
-    if (!email) next.email = "Email is required.";
-    else if (!email.endsWith("@sju.edu")) next.email = "Use your @sju.edu email address.";
-    if (!username) next.username = "Username is required.";
+    if (!form.firstName.trim()) 
+      { next.firstName = "First name is required."; }
+
+    if (!form.lastName.trim()) 
+      { next.lastName = "Last name is required."; }
+
+    if (!email) 
+      { next.email = "Email is required."; }
+
+    else if (!email.endsWith("@sju.edu")) 
+      { next.email = "Use your @sju.edu email address."; }
+
+    if (!username) 
+      { next.username = "Username is required."; }
     else if (!/^[a-z0-9._-]{3,20}$/.test(username))
-      next.username = "Use 3–20 letters, numbers, dots, dashes or underscores.";
-    if (!form.password) next.password = "Password is required.";
-    else if (form.password.length < 6) next.password = "Password must be at least 6 characters.";
-    if (!form.confirmPassword) next.confirmPassword = "Confirm your password.";
-    else if (form.password !== form.confirmPassword) next.confirmPassword = "Passwords don't match.";
+      { next.username = "Use 3–20 letters, numbers, dots, dashes or underscores."; }
+
+    if (!form.password)
+      { next.password = "Password is required."; }
+    else if (form.password.length < 6) 
+      { next.password = "Password must be at least 6 characters."; }
+
+    if (!form.confirmPassword) 
+      { next.confirmPassword = "Confirm your password."; }
+    else if (form.password !== form.confirmPassword) 
+      { next.confirmPassword = "Passwords don't match."; }
 
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    // TODO(backend): Replace this with the real sign-up flow (make handleSubmit async):
-    //   setBusy(true);
-    //   try {
-    //     // 1. Check the username is available; if taken, show the error and stop:
-    //     //    if (await usernameTaken(username)) {
-    //     //      setErrors({ username: "That username is taken. Try another." });
-    //     //      return;
-    //     //    }
-    //     // 2. Create the account (Firebase Auth + user profile document):
-    //     //    await createAccount({ ...form, email, username, role });
-    //     // 3. Then navigate on success.
-    //     navigate("/", { replace: true });
-    //   } catch (err) {
-    //     // 4. Map server errors onto the form using authErrorMessage(code):
-    //     //    "auth/email-already-in-use" -> errors.email
-    //     //    "auth/weak-password"        -> errors.password
-    //     //    anything else               -> errors.form ("Couldn't create your account. Please try again.")
-    //   } finally {
-    //     setBusy(false);
-    //   }
+    setBusy(true);
+
+    try {
+      // Checking if username is taken...
+      const usernameRef = doc(db, "usernames", username);
+      const usernameSnapshot = await getDoc(usernameRef);
+
+      if (usernameSnapshot.exists()) {
+        setErrors({ username: "This username is already taken." });
+        return;
+      }
+      
+      // Creating user account...
+      const userCredential = await createUserWithEmailAndPassword(auth, email, form.password);
+      const user = userCredential.user;
+
+      // Saving user profile to Firestore...
+      await setDoc(usernameRef, { uid: user.uid });
+      await setDoc(doc(db, "users", user.uid), {
+        firstName: form.firstName.trim(),
+        lastName: form.lastName.trim(),
+        email,
+        username,
+        role,
+      });
+
+      console.log("Account created:", user.uid);
+
     navigate("/", { replace: true });
+
+    } catch (err) {
+      console.error(err);
+
+      if (err.code == "auth-weak-password") {
+        setErrors({ password: "Password should be at least 6 characters." });
+      } else if (err.code == "auth/email-already-in-use") {
+        setErrors({ email: "That email is already in use." });
+      } else {
+        setErrors({ form: "Unable to create account. Please try again." });
+      } 
+      
+    } finally {
+      setBusy(false);
+    }
   };
 
   return (
