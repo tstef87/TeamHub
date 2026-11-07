@@ -3,6 +3,8 @@ import { Link, useLocation, useNavigate } from "react-router-dom";
 import AuthLayout from "../../components/layout/AuthLayout";
 import Button from "../../components/ui/Button";
 import { FormAlert, PasswordField, TextField } from "../../components/ui/Field";
+import { sendPasswordResetEmail, signInWithEmailAndPassword } from "firebase/auth";
+import { auth } from "../../firebase";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -13,64 +15,75 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [errors, setErrors] = useState({});
   const [notice, setNotice] = useState("");
-  // TODO(backend): Add `const [busy, setBusy] = useState(false);` for the submit loading state,
-  // and pass `loading={busy}` to the <Button> below.
-
-  // TODO(backend): If the user is already signed in, redirect them instead of showing the form:
-  //   const { user } = useAuth();
-  //   if (user) return <Navigate to={from} replace />;
-  // (import Navigate from react-router-dom and useAuth from context/AuthContext).
-  // Place it after all the hooks so the hook order stays the same.
+  const [busy, setBusy] = useState(false);
 
   const validateEmail = () => {
-    // TODO(backend): Swap in the shared helpers from the auth service:
-    // `normalizeEmail(email)` and `isSjuEmail(e)`.
-    const e = email.trim().toLowerCase();
-    if (!e) return "Email is required.";
-    if (!e.endsWith("@sju.edu")) return "Use your @sju.edu email address.";
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!normalizedEmail) return "Email is required.";
+    if (!normalizedEmail.endsWith("@sju.edu")) 
+      return "Use your @sju.edu email address.";
   };
 
-  const handleLogin = (e) => {
+  const handleLogin = async(e) => {
     e.preventDefault();
     setNotice("");
+
     const next = {};
     const emailError = validateEmail();
+
     if (emailError) next.email = emailError;
     if (!password) next.password = "Password is required.";
     setErrors(next);
     if (Object.keys(next).length) return;
 
-    // TODO(backend): Replace this with the real sign-in (make handleLogin async):
-    //   setBusy(true);
-    //   try {
-    //     await signIn(email, password);
-    //     navigate(from, { replace: true });
-    //   } catch (err) {
-    //     // Show the server error in the form alert:
-    //     setErrors({ form: authErrorMessage(err.code) });
-    //   } finally {
-    //     setBusy(false);
-    //   }
-    navigate(from, { replace: true });
+    setBusy(true);
+
+    try{
+      const normalizedEmail = email.trim().toLowerCase();
+
+      await signInWithEmailAndPassword(auth, normalizedEmail, password);
+      navigate(from, {replace: true});
+    } catch (err){
+      console.error(err);
+
+      if (
+        err.code === "auth/invalid-credential" ||
+        err.code === "auth/wrong-password" ||
+        err.code === "auth/user-not-found"
+      ) {
+        setErrors({ form: "Incorrect email or password. Please try again." });
+      } else {
+        setErrors({ form: "Unable to log in. Please try again."});
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
-  const handleForgotPassword = () => {
+  const handleForgotPassword = async() => {
     setNotice("");
     const emailError = validateEmail();
+
     if (emailError) {
       setErrors({ email: emailError === "Email is required." ? "Enter your email address first." : emailError });
       return;
     }
-    // TODO(backend): Send the password reset email (make handleForgotPassword async):
-    //   try {
-    //     await resetPassword(email);
-    //     setErrors({});
-    //     setNotice("Password reset email sent. Check your SJU inbox for the link.");
-    //   } catch (err) {
-    //     console.error(err);
-    //     setErrors({ form: "Couldn't send the reset email. Please try again." });
-    //   }
-    setErrors({});
+    
+    try {
+      const normalizedEmail = email.trim().toLowerCase();
+      await sendPasswordResetEmail(auth, normalizedEmail);
+
+      setErrors({});
+      setNotice("Password reset email sent. Check your SJU inbox.");
+    } catch (err) {
+      console.error(err);
+
+      if (err.code === "auth/user-not-found") {
+        setErrors({ email: "No account found for that email address." });
+      } else {
+        setErrors({ form: "Unable to send password reset email. Please try again." });
+      }
+    }
   };
 
   return (
