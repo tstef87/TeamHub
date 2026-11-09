@@ -18,7 +18,7 @@ export default function AuthLayout({ title, subtitle, children }) {
         </div>
         <div className="relative max-w-md">
           <p className="font-serif text-[40px] leading-[1.15] font-medium">
-            Every Hawks club team, its schedule, and its people in one place.
+            Every Hawks club team, it's schedule, and its people in one place.
           </p>
           <p className="mt-5 text-white/70">
           </p>

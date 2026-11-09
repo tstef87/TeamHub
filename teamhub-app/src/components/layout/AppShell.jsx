@@ -1,4 +1,5 @@
-import { NavLink, Outlet, useNavigate } from "react-router-dom";
+import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
 import { cx } from "../../lib/format";
 import Icon from "../ui/Icon";
 import { Avatar, RoleBadge, SjuMark, Wordmark } from "../ui/misc";
@@ -10,23 +11,41 @@ const NAV = [
   { to: "/Profile", label: "Profile", icon: "user" },
 ];
 
-// TODO(backend): Remove these placeholders and read the real user from the auth
-// context instead, e.g. `const { displayName, role } = useAuth();`
-const displayName = "Your Name";
-const role = "player";
+// Small full-screen spinner shown while Firebase works out who is signed in.
+// If you already have a <Spinner /> in components/ui, import that instead.
+function Spinner() {
+  return (
+    <div className="flex min-h-dvh items-center justify-center" role="status" aria-label="Loading">
+      <div className="h-8 w-8 animate-spin rounded-full border-4 border-crimson-deep/20 border-t-crimson-deep" />
+    </div>
+  );
+}
 
-// TODO(backend): Add a `RequireAuth` wrapper here (or in the router) that reads
-// `{ user, loading }` from the auth context, shows <Spinner /> while loading,
-// and redirects signed-out visitors to "/Login" with `state={{ from: location.pathname }}`
-// before rendering <AppShell />.
+// Guards the signed-in pages: waits for auth, sends signed-out visitors to /Login
+// (remembering where they were headed), otherwise renders the normal layout.
+export function RequireAuth() {
+  const { user, loading } = useAuth();
+  const location = useLocation();
+
+  if (loading) return <Spinner />;
+
+  if (!user) {
+    return <Navigate to="/Login" replace state={{ from: location.pathname }} />;
+  }
+
+  return <AppShell />;
+}
 
 export default function AppShell() {
   const navigate = useNavigate();
+  const { displayName, role, signOut } = useAuth();
 
-  const handleSignOut = () => {
-    // TODO(backend): Call the sign-out service first, e.g. `await signOut();`
-    // (make this function async), then navigate to the login page.
-    navigate("/Login");
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+    } finally {
+      navigate("/Login", { replace: true });
+    }
   };
 
   return (
@@ -65,9 +84,6 @@ export default function AppShell() {
             <Avatar name={displayName || "?"} size={38} />
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-semibold">{displayName}</p>
-              <div className="mt-0.5 [&>span]:bg-white/10 [&>span]:text-white/80">
-                <RoleBadge role={role} />
-              </div>
             </div>
             <button
               onClick={handleSignOut}

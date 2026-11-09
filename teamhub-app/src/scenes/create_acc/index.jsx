@@ -1,17 +1,19 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
 
 import { auth, db } from "../../firebase";
 import AuthLayout from "../../components/layout/AuthLayout";
 import Button from "../../components/ui/Button";
 import { PasswordField, TextField, FormAlert } from "../../components/ui/Field";
 
-const ROLE_OPTIONS = [
-  { value: "player", title: "Player", detail: "I'm on a team roster" },
-  { value: "follower", title: "Fan", detail: "I want to follow teams" },
-];
+import { createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
+import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
+
+// Keep your existing UI imports (AuthLayout, TextField, PasswordField, Button, Link,
+// useNavigate, useState, auth, db). Make sure these are imported too:
+//
+//   import { createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
+//   import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
 
 export default function CreateAccount() {
   const navigate = useNavigate();
@@ -23,7 +25,6 @@ export default function CreateAccount() {
     password: "",
     confirmPassword: "",
   });
-  const [role, setRole] = useState("follower");
   const [errors, setErrors] = useState({});
   const [busy, setBusy] = useState(false);
 
@@ -31,37 +32,28 @@ export default function CreateAccount() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+    if (busy) return;
+
     const email = form.email.trim().toLowerCase();
     const username = form.username.trim().toLowerCase();
     const next = {};
 
-    if (!form.firstName.trim()) 
-      { next.firstName = "First name is required."; }
+    if (!form.firstName.trim()) next.firstName = "First name is required.";
 
-    if (!form.lastName.trim()) 
-      { next.lastName = "Last name is required."; }
+    if (!form.lastName.trim()) next.lastName = "Last name is required.";
 
-    if (!email) 
-      { next.email = "Email is required."; }
+    if (!email) next.email = "Email is required.";
+    else if (!email.endsWith("@sju.edu")) next.email = "Use your @sju.edu email address.";
 
-    else if (!email.endsWith("@sju.edu")) 
-      { next.email = "Use your @sju.edu email address."; }
-
-    if (!username) 
-      { next.username = "Username is required."; }
+    if (!username) next.username = "Username is required.";
     else if (!/^[a-z0-9._-]{3,20}$/.test(username))
-      { next.username = "Use 3–20 letters, numbers, dots, dashes or underscores."; }
+      next.username = "Use 3–20 letters, numbers, dots, dashes or underscores.";
 
-    if (!form.password)
-      { next.password = "Password is required."; }
-    else if (form.password.length < 6) 
-      { next.password = "Password must be at least 6 characters."; }
+    if (!form.password) next.password = "Password is required.";
+    else if (form.password.length < 6) next.password = "Password must be at least 6 characters.";
 
-    if (!form.confirmPassword) 
-      { next.confirmPassword = "Confirm your password."; }
-    else if (form.password !== form.confirmPassword) 
-      { next.confirmPassword = "Passwords don't match."; }
+    if (!form.confirmPassword) next.confirmPassword = "Confirm your password.";
+    else if (form.password !== form.confirmPassword) next.confirmPassword = "Passwords don't match.";
 
     setErrors(next);
     if (Object.keys(next).length) return;
@@ -69,44 +61,61 @@ export default function CreateAccount() {
     setBusy(true);
 
     try {
-      // Checking if username is taken...
-      const usernameRef = doc(db, "usernames", username);
-      const usernameSnapshot = await getDoc(usernameRef);
+      // One doc per user, keyed by username: users/{username}
+      const userRef = doc(db, "users", username);
+      console.log("1. checking username", userRef.path);
 
-      if (usernameSnapshot.exists()) {
+      // Quick check so most people see the error before an auth account is created
+      if ((await getDoc(userRef)).exists()) {
         setErrors({ username: "This username is already taken." });
         return;
       }
-      
-      // Creating user account...
-      const userCredential = await createUserWithEmailAndPassword(auth, email, form.password);
-      const user = userCredential.user;
+      console.log("2. username free, creating auth account");
 
-      // Saving user profile to Firestore...
-      await setDoc(usernameRef, { uid: user.uid });
-      await setDoc(doc(db, "users", user.uid), {
-        firstName: form.firstName.trim(),
-        lastName: form.lastName.trim(),
-        email,
-        username,
-        role,
-      });
+      const { user } = await createUserWithEmailAndPassword(auth, email, form.password);
+      console.log("3. auth account created", user.uid);
 
-      console.log("Account created:", user.uid);
+      // Claim the username in a transaction so two people signing up at once can't both get it
+      try {
+        await runTransaction(db, async (tx) => {
+          console.log("4. inside transaction");
+          const snap = await tx.get(userRef);
+          if (snap.exists()) throw new Error("username-taken");
+          tx.set(userRef, {
+            uid: user.uid,
+            firstName: form.firstName.trim(),
+            lastName: form.lastName.trim(),
+            email,
+            createdAt: serverTimestamp(),
+          });
+        });
+        console.log("5. profile saved");
+      } catch (err) {
+        console.error("transaction failed:", err.code, err.message);
+        // Don't leave an auth account behind with no profile
+        await deleteUser(user).catch((e) => console.error("deleteUser failed:", e.code, e.message));
+        if (err.message === "username-taken") {
+          setErrors({ username: "This username is already taken." });
+          return;
+        }
+        throw err;
+      }
 
-    navigate("/", { replace: true });
-
+      console.log("Account created:", user.uid, "as", username);
+      navigate("/", { replace: true });
     } catch (err) {
       console.error(err);
 
-      if (err.code == "auth-weak-password") {
+      if (err.code === "auth/weak-password") {
         setErrors({ password: "Password should be at least 6 characters." });
-      } else if (err.code == "auth/email-already-in-use") {
+      } else if (err.code === "auth/email-already-in-use") {
         setErrors({ email: "That email is already in use." });
+      } else if (err.code === "auth/invalid-email") {
+        setErrors({ email: "That email address isn't valid." });
       } else {
-        setErrors({ form: "Unable to create account. Please try again." });
-      } 
-      
+        // TODO: switch back to the plain message once sign-up works
+        setErrors({ form: `Unable to create account (${err.code || err.message}).` });
+      }
     } finally {
       setBusy(false);
     }
@@ -144,11 +153,14 @@ export default function CreateAccount() {
           error={errors.confirmPassword}
         />
 
-        {/* TODO(backend): Render a general server error here when `errors.form` is set,
-            e.g. <FormAlert>{errors.form}</FormAlert> (import FormAlert from Field). */}
+        {errors.form && (
+          <div className="sm:col-span-2">
+            <FormAlert>{errors.form}</FormAlert>
+          </div>
+        )}
 
-        <Button type="submit" size="lg" className="w-full sm:col-span-2">
-          Create account
+        <Button type="submit" size="lg" className="w-full sm:col-span-2" disabled={busy}>
+          {busy ? "Creating account…" : "Create account"}
         </Button>
       </form>
 
