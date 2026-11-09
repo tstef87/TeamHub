@@ -8,6 +8,7 @@ import CalendarUpload from "../../../../components/team/CalendarUpload";
 import { SCHOOL_CLUBS, SPORTS_TEAMS } from "../../../../lib/activities";
 import { cx } from "../../../../lib/format";
 import { createTeam, teamNameExists } from "../../../../firestore/Teams";
+import { useAuth } from "../../../../context/AuthContext";
 
 // Validate Email
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -20,6 +21,9 @@ const splitEmails = (raw) =>
 
 export default function CreateTeam() {
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
+  const adminLabel =
+    [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || user?.email || "";
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [activityType, setActivityType] = useState("sport");
@@ -72,6 +76,11 @@ export default function CreateTeam() {
     e.preventDefault();
     setSaving(true);
     try {
+      if (!user) {
+        setErrors({ form: "You must be signed in to create a team." });
+        setSaving(false);
+        return;
+      }
       const trimmedName = name.trim();
       // Include any half-typed email still in the input box.
       const finalMembers = [...new Set([...members, ...splitEmails(memberDraft)])];
@@ -92,6 +101,7 @@ export default function CreateTeam() {
         org: activity,
         events: calendarEvents,
         members: finalMembers,
+        admins: [user.uid],
       });
       navigate("/Teams");
     } catch (err) {
@@ -176,6 +186,13 @@ export default function CreateTeam() {
             {errors.activity && <p className="text-[13px] font-medium text-danger">{errors.activity}</p>}
           </div>
         </fieldset>
+
+        <TextField
+          label="Admin"
+          value={adminLabel}
+          readOnly
+          hint="You'll be the team admin. You can add more admins later."
+        />
 
         <CalendarUpload onEventsParsed={setCalendarEvents} onClear={() => setCalendarEvents([])} />
 

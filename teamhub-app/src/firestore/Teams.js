@@ -53,9 +53,8 @@ export async function getTeamEvents(id) {
 }
 
 export async function createTeam({ name, description = "", org_cat = "",
-  org = "", events = [] }) {
-  //   const user = auth.currentUser;
-  //   if (!user) throw new Error("You must be signed in to create a team.");
+  org = "", events = [], admins = [] }) {
+  if (!admins.length) throw new Error("A team needs at least one admin.");
 
   const cleanName = (name ?? "").trim();
   if (!cleanName) throw new Error("Team name is required.");
@@ -75,6 +74,7 @@ export async function createTeam({ name, description = "", org_cat = "",
       org_cat,
       org,
       // members: ['test_user']
+      admins, // array of user uids; the creator is the first admin
       followers: 0,
       // ownerId: user.uid,
       // ownerEmail: user.email,

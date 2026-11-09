@@ -1,10 +1,7 @@
 import { BrowserRouter, Route, Routes } from "react-router-dom";
-import AppShell from "./components/layout/AppShell";
-// TODO(backend): Import the auth pieces again:
-//   import { RequireAuth } from "./components/layout/AppShell";
-//   import { AuthProvider } from "./context/AuthContext";
+import { RequireAuth } from "./components/layout/AppShell";
+import { AuthProvider } from "./context/AuthContext";
 
-// Scenes (same URL paths as before, plus Messages and Profile)
 import CreateAccount from "./scenes/create_acc";
 import HomePage from "./scenes/home_page";
 import Login from "./scenes/login";
@@ -16,31 +13,27 @@ import CreateTeam from "./scenes/team_pages/teams/create_team";
 import Team from "./scenes/team_pages/teams/team";
 
 export default function App() {
-  // TODO(backend): Wrap <BrowserRouter> in <AuthProvider> so every page can read the signed-in user:
-  //   <AuthProvider>
-  //     <BrowserRouter> ... </BrowserRouter>
-  //   </AuthProvider>
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/Login" element={<Login />} />
-        <Route path="/Create-Account" element={<CreateAccount />} />
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/Login" element={<Login />} />
+          <Route path="/Create-Account" element={<CreateAccount />} />
 
-        {/* Everything below shares the sidebar layout */}
-        {/* TODO(backend): Change element={<AppShell />} to element={<RequireAuth />} so these pages
-            need a signed-in user (RequireAuth sends signed-out visitors to /Login, then renders AppShell). */}
-        <Route element={<AppShell />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/Teams" element={<Teams />} />
-          <Route path="/Teams/Create-Team" element={<CreateTeam />} />
-          <Route path="/teams/:teamId" element={<Team />} />
-          <Route path="/Messages" element={<Messages />} />
-          <Route path="/Messages/:conversationId" element={<Messages />} />
-          <Route path="/Profile" element={<Profile />} />
-        </Route>
+          {/* Signed-in pages that share the sidebar layout */}
+          <Route element={<RequireAuth />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/Teams" element={<Teams />} />
+            <Route path="/Teams/Create-Team" element={<CreateTeam />} />
+            <Route path="/teams/:teamId" element={<Team />} />
+            <Route path="/Messages" element={<Messages />} />
+            <Route path="/Messages/:conversationId" element={<Messages />} />
+            <Route path="/Profile" element={<Profile />} />
+          </Route>
 
-        <Route path="*" element={<NotFound />} />
-      </Routes>
-    </BrowserRouter>
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
