@@ -2,7 +2,7 @@ import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-route
 import { useAuth } from "../../context/AuthContext";
 import { cx } from "../../lib/format";
 import Icon from "../ui/Icon";
-import { Avatar, RoleBadge, SjuMark, Wordmark } from "../ui/misc";
+import { Avatar, SjuMark, Wordmark } from "../ui/misc";
 
 const NAV = [
   { to: "/", label: "Home", icon: "home", end: true },

@@ -53,7 +53,7 @@ export function TeamRow({ team, following }) {
       </div>
       <div className="hidden text-right text-sm sm:block">
         <p className="font-semibold tabular-nums">{team.followers ?? 0}</p>
-        <p className="text-muted">{team.followers === 1 ? "fan" : "fans"}</p>
+        {/* <p className="text-muted">{team.followers === 1 ? "fan" : "fans"}</p> */}
       </div>
       <Icon name="chevronRight" className="text-muted group-hover:text-crimson-ink" />
     </Link>

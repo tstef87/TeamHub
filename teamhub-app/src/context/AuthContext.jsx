@@ -43,10 +43,7 @@ export function AuthProvider({ children }) {
     user,
     profile,
     loading,
-    displayName: profile?.firstName + " " + profile?.lastName || 
-        user?.firstName + " " + user?.lastName || 
-        user?.email || 
-        "",
+    displayName: [profile?.firstName, profile?.lastName].filter(Boolean).join(" ") || user?.email || "",
     signOut: () => firebaseSignOut(auth),
   };
 

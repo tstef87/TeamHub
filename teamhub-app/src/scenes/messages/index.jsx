@@ -1,64 +1,21 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import Button from "../../components/ui/Button";
 import Icon from "../../components/ui/Icon";
-import { Avatar, EmptyState, RoleBadge } from "../../components/ui/misc";
+import { Avatar, EmptyState } from "../../components/ui/misc";
 import { cx, fullName, relativeTime } from "../../lib/format";
 
-// TODO(backend): Remove the sample data below and the in-memory state in <Messages />.
-// Original services (services/messages) and how they were used:
-//   const { user, displayName } = useAuth();                 // who is signed in
-//   watchConversations(uid, setConversations)                // live list of this user's conversations
-//   watchMessages(conversationId, setMessages)               // live messages for the open conversation
-//   sendMessage(conversationId, { uid, name }, text)         // save a new message
-//   searchPeople(term, uid)                                  // find people to message (excludes self)
-//   openDirectConversation(me, other)                        // find or create a 1-on-1 conversation, returns its id
-// The watch functions return an unsubscribe function, so return them from useEffect.
-// Also restore the <Spinner /> (from ui/misc) while conversations or messages are still loading (null),
-// and the "Conversation not found" state once loading finishes and the id doesn't match.
+import {
+  searchPeople,
+  watchConversations,
+  watchMessages,
+  sendMessage,
+  sendFirstMessage,
+  directConversationId,
+  deleteExpiredConversations,
+} from "../../firestore/Messages";
 
-const uid = "me";
-const displayName = "Alex";
-
-const HOUR = 60 * 60 * 1000;
-const now = Date.now();
-
-const SAMPLE_PEOPLE = [
-  { uid: "u1", firstName: "Jordan", lastName: "Rivera", username: "coach.rivera", role: "coach" },
-  { uid: "u2", firstName: "Jamie", lastName: "Lee", username: "jamie.lee", role: "player" },
-  { uid: "u3", firstName: "Sam", lastName: "Patel", username: "spatel", role: "follower" },
-];
-
-const SAMPLE_CONVERSATIONS = [
-  {
-    id: "c1",
-    title: "",
-    participants: [uid, "u1"],
-    participantNames: { [uid]: displayName, u1: "Jordan Rivera" },
-    lastMessage: "See you at practice.",
-    updatedAt: new Date(now - 1 * HOUR),
-  },
-  {
-    id: "c2",
-    title: "Hockey Carpool",
-    participants: [uid, "u2", "u3"],
-    participantNames: { [uid]: displayName, u2: "Jamie Lee", u3: "Sam Patel" },
-    lastMessage: "I can drive Thursday.",
-    updatedAt: new Date(now - 26 * HOUR),
-  },
-];
-
-const SAMPLE_MESSAGES = {
-  c1: [
-    { id: "m1", senderId: "u1", senderName: "Jordan Rivera", text: "Practice moved to 7 PM this week." },
-    { id: "m2", senderId: uid, senderName: displayName, text: "Got it, thanks!" },
-    { id: "m3", senderId: "u1", senderName: "Jordan Rivera", text: "See you at practice." },
-  ],
-  c2: [
-    { id: "m4", senderId: "u2", senderName: "Jamie Lee", text: "Who can drive Thursday?" },
-    { id: "m5", senderId: "u3", senderName: "Sam Patel", text: "I can drive Thursday." },
-  ],
-};
+import { useAuth } from "../../context/AuthContext";
 
 function titleFor(c, myUid) {
   if (c.title) return c.title;
@@ -68,46 +25,64 @@ function titleFor(c, myUid) {
 
 export default function Messages() {
   const { conversationId } = useParams();
-  const [conversations, setConversations] = useState(SAMPLE_CONVERSATIONS);
-  const [messagesById, setMessagesById] = useState(SAMPLE_MESSAGES);
+  const { user, displayName } = useAuth();
+  const uid = user?.uid;
+  const [conversations, setConversations] = useState([]);
+  const [messages, setMessages] = useState([]);
   const [composing, setComposing] = useState(false);
 
-  const active = conversations.find((c) => c.id === conversationId) ?? null;
+  const location = useLocation();
+  const draftWith = location.state?.draftWith;
 
-  // TODO(backend): Replace with sendMessage(conversationId, { uid, name: displayName }, text).
-  // The live watchMessages / watchConversations listeners will then update the UI on their own.
-  const handleSend = (convId, text) => {
+  // Use the real conversation if it exists; otherwise show a draft for the person just picked
+  const found = conversations.find((c) => c.id === conversationId) ?? null;
+  const active =
+    found ??
+    (draftWith
+      ? {
+          id: conversationId,
+          title: "",
+          participants: [uid, draftWith.uid],
+          participantNames: { [uid]: displayName, [draftWith.uid]: draftWith.name },
+          draft: true,
+        }
+      : null);
+
+  // Delete my expired conversations when the page opens
+  useEffect(() => {
+    if (!uid) return;
+    deleteExpiredConversations(uid).catch((err) => console.error("Cleanup failed:", err));
+  }, [uid]);
+
+  // Live list of my conversations
+  useEffect(() => {
+    if (!uid) return;
+    return watchConversations(uid, setConversations);
+  }, [uid]);
+
+  // Only listen for messages once the conversation really exists
+  const exists = !!found;
+  useEffect(() => {
+    if (!conversationId || !exists) {
+      setMessages([]);
+      return;
+    }
+    return watchMessages(conversationId, setMessages);
+  }, [conversationId, exists]);
+
+  const handleSend = async (convId, text) => {
     const trimmed = text.trim();
     if (!trimmed) return;
-    const message = { id: `m${Date.now()}`, senderId: uid, senderName: displayName, text: trimmed };
-    setMessagesById((prev) => ({ ...prev, [convId]: [...(prev[convId] ?? []), message] }));
-    setConversations((prev) =>
-      prev
-        .map((c) => (c.id === convId ? { ...c, lastMessage: trimmed, updatedAt: new Date() } : c))
-        .sort((a, b) => b.updatedAt - a.updatedAt),
-    );
-  };
-
-  // TODO(backend): Replace with openDirectConversation(me, other), which finds or creates the
-  // conversation and returns its id.
-  const handleStartConversation = (person) => {
-    const existing = conversations.find(
-      (c) => !c.title && c.participants.length === 2 && c.participants.includes(person.uid),
-    );
-    if (existing) return existing.id;
-    const id = `c${Date.now()}`;
-    setConversations((prev) => [
-      {
-        id,
-        title: "",
-        participants: [uid, person.uid],
-        participantNames: { [uid]: displayName, [person.uid]: fullName(person) },
-        lastMessage: "",
-        updatedAt: new Date(),
-      },
-      ...prev,
-    ]);
-    return id;
+    const me = { uid, name: displayName };
+    try {
+      if (active?.draft) {
+        await sendFirstMessage(me, draftWith, trimmed);
+      } else {
+        await sendMessage(convId, me, trimmed);
+      }
+    } catch (err) {
+      console.error("Couldn't send message:", err);
+    }
   };
 
   return (
@@ -120,7 +95,7 @@ export default function Messages() {
             <Icon name="plus" size={16} /> New
           </Button>
         </header>
-        {composing && <NewConversation onClose={() => setComposing(false)} onStart={handleStartConversation} />}
+        {composing && <NewConversation onClose={() => setComposing(false)} />}
         <div className="min-h-0 flex-1 overflow-y-auto">
           {conversations.length ? (
             <ul>
@@ -164,7 +139,8 @@ export default function Messages() {
           active ? (
             <Thread
               conversation={active}
-              messages={messagesById[active.id] ?? []}
+              messages={messages}
+              uid={uid}
               onSend={(text) => handleSend(active.id, text)}
             />
           ) : (
@@ -183,11 +159,9 @@ export default function Messages() {
   );
 }
 
-function Thread({ conversation, messages, onSend }) {
+function Thread({ conversation, messages, onSend, uid }) {
   const [draft, setDraft] = useState("");
   const endRef = useRef(null);
-  // TODO(backend): Add `const [sending, setSending] = useState(false);`, make submit async, wrap the
-  // send in try/catch/finally, and pass `loading={sending}` to the send <Button>.
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ block: "end" });
@@ -265,5 +239,64 @@ function Thread({ conversation, messages, onSend }) {
   );
 }
 
-function NewConversation({ onClose, onStart }) {
+function NewConversation({ onClose }) {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const [term, setTerm] = useState("");
+  const [results, setResults] = useState([]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    const handle = setTimeout(() => {
+      searchPeople(term, user.uid).then((r) => !cancelled && setResults(r));
+    }, 200);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [term, user]);
+
+  // Open a draft chat; nothing is saved until the first message is sent
+  const start = (p) => {
+    if (!user) return;
+    const id = directConversationId(user.uid, p.uid);
+    onClose();
+    navigate(`/Messages/${id}`, { state: { draftWith: { uid: p.uid, name: fullName(p) } } });
+  };
+
+  return (
+    <div className="border-b border-line bg-surface-sunk p-3">
+      <div className="mb-2 flex items-center gap-2">
+        <label className="relative flex-1">
+          <span className="sr-only">Search people</span>
+          <Icon name="search" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
+          <input
+            autoFocus
+            value={term}
+            onChange={(e) => setTerm(e.target.value)}
+            placeholder="Search by name or username"
+            className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm focus:border-crimson focus:outline-none"
+          />
+        </label>
+        <button onClick={onClose} className="rounded-md p-1.5 text-muted hover:text-ink" aria-label="Close search">
+          <Icon name="x" size={18} />
+        </button>
+      </div>
+      <ul className="max-h-60 overflow-y-auto">
+        {results.map((p) => (
+          <li key={p.uid}>
+            <button onClick={() => start(p)} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-surface">
+              <Avatar name={fullName(p)} size={32} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-semibold">{fullName(p)}</span>
+                <span className="block truncate text-xs text-muted">@{p.username}</span>
+              </span>
+            </button>
+          </li>
+        ))}
+        {!results.length && <li className="px-2 py-2 text-sm text-muted">No one matches that name.</li>}
+      </ul>
+    </div>
+  );
 }
