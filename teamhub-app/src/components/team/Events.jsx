@@ -8,15 +8,24 @@ import Button from "../../components/ui/Button";
 import { addDoc, collection, deleteDoc, deleteField, doc, onSnapshot, orderBy, query, updateDoc } from "firebase/firestore";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+const dayKey = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; 
+const eventDayKey = (event) => {
+  const start = new Date(event.start);
+  return event.allDay
+    ? `${start.getUTCFullYear()}-${start.getUTCMonth()}-${start.getUTCDate()}`
+    : dayKey(start);
+};
 
 const pad = (n) => String(n).padStart(2, "0");
 
 // ISO string -> value for <input type="date"> or <input type="datetime-local"> (local time)
 function toInputValue(iso, allDay) {
   const d = new Date(iso);
+  if (allDay) {
+    return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())}`;
+  }
   const date = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  return allDay ? date : `${date}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  return `${date}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
 const rowBtn =
@@ -56,7 +65,7 @@ function CalendarView({ events, onEdit, onRemove }) {
   // Group events by local calendar day (by start date)
   const byDay = {};
   events.forEach((e) => {
-    const k = dayKey(new Date(e.start));
+    const k = eventDayKey(e);
     (byDay[k] ??= []).push(e);
   });
 
@@ -177,10 +186,12 @@ function EventForm({ initial, onSave, onCancel }) {
     if (!title.trim()) return setError("Add a title.");
     if (!start) return setError("Pick a start " + (allDay ? "date." : "date and time."));
 
-    // `${date}T00:00` and datetime-local strings are parsed as local time
-    const startDate = new Date(allDay ? `${start}T00:00` : start);
-    let endDate = end ? new Date(allDay ? `${end}T23:59` : end) : null;
-    if (allDay && !endDate) endDate = new Date(`${start}T23:59`);
+    // All-day dates are stored in UTC so their calendar day does not shift
+    // according to the browser's timezone. Timed events use local time.
+    // (otherwise the date shown could be anarchronistic)
+    const startDate = new Date(allDay ? `${start}T00:00:00.000Z` : start);
+    let endDate = end ? new Date(allDay ? `${end}T23:59:59.999Z` : end) : null;
+    if (allDay && !endDate) endDate = new Date(`${start}T23:59:59.999Z`);
     if (endDate && endDate < startDate) return setError("The end can't be before the start.");
 
     setBusy(true);

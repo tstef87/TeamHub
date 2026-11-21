@@ -10,6 +10,7 @@ import { activityName } from "../../../../lib/activities";
 import { cx } from "../../../../lib/format";
 import { getTeam } from "../../../../firestore/Teams";
 import Schedule from "../../../../components/team/Events";
+import { useAuth } from "../../../../context/AuthContext";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -84,6 +85,7 @@ const TABS = [
 export default function TeamPage() {
   const { teamId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [team, setTeam] = useState(null);
   const [tab, setTab] = useState("updates");
   const [isFollowing, setIsFollowing] = useState(false);
@@ -215,8 +217,8 @@ export default function TeamPage() {
             onTogglePin={handleTogglePin}
           />
         )}
-        {/* TODO(backend): replace with a real team-admin check, e.g. team.admins?.includes(user.uid) */}
-        {tab === "schedule" && <Schedule teamId={teamId} canManage={role === "coach"} />}
+        {/*see lines 13, 88*/}
+        {tab === "schedule" && <Schedule teamId={teamId} canManage={Boolean(user && team.admins?.includes(user.uid))} />}
         {tab === "roster" && <Roster roster={SAMPLE_ROSTER} me={me} />}
         {tab === "about" && (
           <div className="max-w-prose">

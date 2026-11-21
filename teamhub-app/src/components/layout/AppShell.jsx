@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Navigate, NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { cx } from "../../lib/format";
@@ -28,7 +29,7 @@ export function RequireAuth() {
   const location = useLocation();
 
   if (loading) return <Spinner />;
-
+  
   if (!user) {
     return <Navigate to="/Login" replace state={{ from: location.pathname }} />;
   }
@@ -38,13 +39,17 @@ export function RequireAuth() {
 
 export default function AppShell() {
   const navigate = useNavigate();
-  const { displayName, role, signOut } = useAuth();
+  const { displayName, signOut } = useAuth();
+  const [signOutError, setSignOutError] = useState("");
 
   const handleSignOut = async () => {
     try {
+      setSignOutError("");
       await signOut();
-    } finally {
       navigate("/Login", { replace: true });
+    } catch (err) {
+      console.error("Sign out failed:", err);
+      setSignOutError("Couldn't sign out. Please try again.");
     }
   };
 
@@ -114,6 +119,7 @@ export default function AppShell() {
 
       <main className="min-w-0 px-4 pb-28 pt-6 sm:px-6 lg:px-10 lg:pb-12 lg:pt-10">
         <div className="mx-auto max-w-5xl">
+          {signOutError && <p role="alert" className="mb-4 text-sm text-danger">{signOutError}</p>}
           <Outlet />
         </div>
       </main>
