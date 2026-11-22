@@ -22,7 +22,9 @@ export function parseIcs(text) {
       allDay,
       // ISO strings are safe to store in Firestore and easy to give to a calendar view.
       start: e.startDate.toJSDate().toISOString(),
-      end: e.endDate ? e.endDate.toJSDate().toISOString() : null,
+      end: e.endDate
+        ? new Date(e.endDate.toJSDate().getTime() - (allDay ? 1 : 0)).toISOString()
+        : null,
       // Only the first occurrence is included for repeating events.
       recurring: e.isRecurring(),
     };
