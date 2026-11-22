@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { onAuthStateChanged, signOut as firebaseSignOut } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { collection, getDocs, limit, query, where } from "firebase/firestore";
 import { auth, db } from "../firebase";
 
 const AuthContext = createContext(null);
@@ -9,12 +9,11 @@ const ALLOWED_DOMAIN = "@sju.edu";
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
-  const [profile, setProfile] = useState(null); // the users/{uid} doc from Firestore
-  const [loading, setLoading] = useState(true); // true until Firebase reports the first auth state
+  const [profile, setProfile] = useState(null); 
+const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setLoading(true);
+useEffect(() => {
+  const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
 
       // Only @sju.edu accounts are allowed in
       if (firebaseUser && !firebaseUser.email?.toLowerCase().endsWith(ALLOWED_DOMAIN)) {
@@ -25,9 +24,10 @@ export function AuthProvider({ children }) {
       let userDoc = null;
       if (firebaseUser) {
         try {
-          const snap = await getDoc(doc(db, "users", firebaseUser.uid));
-          userDoc = snap.exists() ? snap.data() : null;
-        } catch (err) {
+          const snap = await getDocs(query(collection(db, "users"), where("uid", "==", firebaseUser.uid), limit(1)));
+          userDoc = snap.empty ? null : { id: snap.docs[0].id, ...snap.docs[0].data() };
+          } 
+        catch (err) {
           console.error("Couldn't load user profile:", err);
         }
       }

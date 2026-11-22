@@ -53,7 +53,7 @@ export async function getTeamEvents(id) {
 }
 
 export async function createTeam({ name, description = "", org_cat = "",
-  org = "", events = [], admins = [] }) {
+  org = "", events = [], members = [], admins = [] }) {
   if (!admins.length) throw new Error("A team needs at least one admin.");
 
   const cleanName = (name ?? "").trim();
@@ -73,8 +73,8 @@ export async function createTeam({ name, description = "", org_cat = "",
       description: description.trim(),
       org_cat,
       org,
-      // members: ['test_user']
-      admins, // array of user uids; the creator is the first admin
+      members,
+      admins,// array of user uids; the creator is the first admin
       followers: 0,
       // ownerId: user.uid,
       // ownerEmail: user.email,

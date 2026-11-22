@@ -6,7 +6,6 @@ import { Avatar, EmptyState } from "../../components/ui/misc";
 import { cx, fullName, relativeTime } from "../../lib/format";
 
 import {
-  searchPeople,
   watchConversations,
   watchMessages,
   sendMessage,
@@ -14,6 +13,8 @@ import {
   directConversationId,
   deleteExpiredConversations,
 } from "../../firestore/Messages";
+import UserSearch from "../../components/search/UserSearch";
+
 
 import { useAuth } from "../../context/AuthContext";
 
@@ -240,63 +241,33 @@ function Thread({ conversation, messages, onSend, uid }) {
 }
 
 function NewConversation({ onClose }) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
-  const [term, setTerm] = useState("");
-  const [results, setResults] = useState([]);
 
-  useEffect(() => {
-    if (!user) return;
-    let cancelled = false;
-    const handle = setTimeout(() => {
-      searchPeople(term, user.uid).then((r) => !cancelled && setResults(r));
-    }, 200);
-    return () => {
-      cancelled = true;
-      clearTimeout(handle);
-    };
-  }, [term, user]);
-
-  // Open a draft chat; nothing is saved until the first message is sent
+  // Open draft
   const start = (p) => {
-    if (!user) return;
+    if (!user || !p.uid) return;
     const id = directConversationId(user.uid, p.uid);
     onClose();
-    navigate(`/Messages/${id}`, { state: { draftWith: { uid: p.uid, name: fullName(p) } } });
+    navigate(`/Messages/${id}`, { state: { draftWith: { uid: p.uid, name: fullName(p) || p.id } } });
   };
 
   return (
     <div className="border-b border-line bg-surface-sunk p-3">
-      <div className="mb-2 flex items-center gap-2">
-        <label className="relative flex-1">
-          <span className="sr-only">Search people</span>
-          <Icon name="search" size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted" />
-          <input
+      <div className="flex items-center gap-2">
+        <div className="flex-1">
+          <label htmlFor="dm-search" className="sr-only">Search people</label>
+          <UserSearch
+            id="dm-search"
             autoFocus
-            value={term}
-            onChange={(e) => setTerm(e.target.value)}
-            placeholder="Search by name or username"
-            className="w-full rounded-lg border border-line bg-surface py-2 pl-9 pr-3 text-sm focus:border-crimson focus:outline-none"
+            excludeIds={profile?.id ? [profile.id] : []}
+            onSelect={start}
           />
-        </label>
+        </div>
         <button onClick={onClose} className="rounded-md p-1.5 text-muted hover:text-ink" aria-label="Close search">
           <Icon name="x" size={18} />
         </button>
       </div>
-      <ul className="max-h-60 overflow-y-auto">
-        {results.map((p) => (
-          <li key={p.uid}>
-            <button onClick={() => start(p)} className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-surface">
-              <Avatar name={fullName(p)} size={32} />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold">{fullName(p)}</span>
-                <span className="block truncate text-xs text-muted">@{p.username}</span>
-              </span>
-            </button>
-          </li>
-        ))}
-        {!results.length && <li className="px-2 py-2 text-sm text-muted">No one matches that name.</li>}
-      </ul>
     </div>
   );
 }

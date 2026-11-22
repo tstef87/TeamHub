@@ -5,6 +5,7 @@ import { auth, db } from "../../firebase";
 import AuthLayout from "../../components/layout/AuthLayout";
 import Button from "../../components/ui/Button";
 import { PasswordField, TextField, FormAlert } from "../../components/ui/Field";
+import { buildSearchTokens } from "../../lib/search";
 
 import { createUserWithEmailAndPassword, deleteUser } from "firebase/auth";
 import { doc, getDoc, runTransaction, serverTimestamp } from "firebase/firestore";
@@ -86,6 +87,8 @@ export default function CreateAccount() {
             firstName: form.firstName.trim(),
             lastName: form.lastName.trim(),
             email,
+            username,
+            searchTokens: buildSearchTokens(form.firstName, form.lastName, username, email.split("@")[0]),
             createdAt: serverTimestamp(),
           });
         });

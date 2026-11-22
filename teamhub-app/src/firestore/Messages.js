@@ -26,21 +26,6 @@ const notExpired = (data) => !data.expireAt || data.expireAt.toMillis() > Date.n
 
 export const CONV_COLLECTION = "messages";
 
-// Find people to message. Users are stored as users/{username} with uid, firstName, lastName.
-export async function searchPeople(term, myUid) {
-  const t = term.trim().toLowerCase();
-  const snap = await getDocs(query(collection(db, "users"), limit(200)));
-  return snap.docs
-    .map((d) => ({ username: d.id, ...d.data() }))
-    .filter((p) => p.uid !== myUid)
-    .filter((p) =>
-      !t ||
-      p.username.toLowerCase().includes(t) ||
-      `${p.firstName} ${p.lastName}`.toLowerCase().includes(t)
-    )
-    .slice(0, 20);
-}
-
 // Same id for both people, so a chat between two users is always the same document
 export const directConversationId = (a, b) => "dm_" + [a, b].sort().join("_");
 
