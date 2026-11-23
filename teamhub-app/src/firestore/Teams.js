@@ -79,6 +79,7 @@ export async function createTeam({ name, description = "", org_cat = "",
       // ownerId: user.uid,
       // ownerEmail: user.email,
       // createdAt: serverTimestamp(),
+      pinnedAnnouncementsCount: 0,
     });
   });
 

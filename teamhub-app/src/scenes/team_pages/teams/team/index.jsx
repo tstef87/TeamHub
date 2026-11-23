@@ -10,32 +10,18 @@ import { activityName } from "../../../../lib/activities";
 import { cx } from "../../../../lib/format";
 import { getTeam } from "../../../../firestore/Teams";
 import Schedule from "../../../../components/team/Events";
+import { useAuth } from "../../../../context/AuthContext";
+import {
+  getAnnouncements,
+  postAnnouncement,
+  setAnnouncementPinned,
+  editAnnouncement,
+  deleteAnnouncement
+} from "../../../../firestore/Announcements";
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
 const now = Date.now();
-
-const role = "coach"; // Change to "player" to hide the post and pin controls.
-const me = { uid: "me", name: "Alex Johnson" };
-
-const SAMPLE_ANNOUNCEMENTS = [
-  {
-    id: "a1",
-    title: "Practice moved to 7 PM",
-    body: "Ice time shifted this week. Bring both jerseys.",
-    pinned: true,
-    authorName: "Coach Rivera",
-    createdAt: new Date(now - 3 * HOUR),
-  },
-  {
-    id: "a2",
-    title: "Spring schedule posted",
-    body: "Check the schedule tab for home and away dates.",
-    pinned: false,
-    authorName: "Coach Rivera",
-    createdAt: new Date(now - 2 * DAY),
-  },
-];
 
 const SAMPLE_EVENTS = [
   {
@@ -84,15 +70,20 @@ const TABS = [
 export default function TeamPage() {
   const { teamId } = useParams();
   const navigate = useNavigate();
+  const { user, loading: authLoading } = useAuth();
+
   const [team, setTeam] = useState(null);
   const [tab, setTab] = useState("updates");
   const [isFollowing, setIsFollowing] = useState(false);
   const [followers, setFollowers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [announcements, setAnnouncements] = useState(SAMPLE_ANNOUNCEMENTS);
-  // TODO(backend): Add `const [followBusy, setFollowBusy] = useState(false);` and disable the follow
-  // button while it's saving.
+
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementsLoading, setAnnouncementsLoading] = useState(true);
+  const [announcementsError, setAnnouncementsError] = useState("");
+  const [pinUpdatingId, setPinUpdatingId] = useState(null);
+  const [announcementActionId, setAnnouncementActionId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -121,35 +112,139 @@ export default function TeamPage() {
     };
   }, [teamId, navigate]);
   
-  // TODO(backend): Replace with followTeam(user.uid, t.id) / unfollowTeam(user.uid, t.id) inside a
-  // try/catch, and read `isFollowing` from `profile.followedTeams.includes(teamId)` instead of state.
+  useEffect(() => {
+    let cancelled = false;
+    setAnnouncementsLoading(true);
+    setAnnouncementsError("");
+
+    getAnnouncements(teamId)
+      .then((list) => {
+        if (!cancelled) setAnnouncements(list);
+      })
+      .catch((err) => {
+        console.error(err);
+        if (!cancelled) setAnnouncementsError("Couldn't load announcements. Please try again.");
+      })
+      .finally(() => {
+        if (!cancelled) setAnnouncementsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [teamId]);
+
+
+  const handlePost = async ({ title, body }) => {
+    await postAnnouncement(teamId, { title, body });
+    const updated = await getAnnouncements(teamId);
+    setAnnouncements(updated);
+  };
+
+
+const handleTogglePin = async (announcementId, pinned) => {
+  // Prevent another pin operation while one is already running.
+  if (pinUpdatingId !== null) return;
+
+  setPinUpdatingId(announcementId);
+  setAnnouncementsError("");
+
+  try {
+    await setAnnouncementPinned(teamId, announcementId, pinned);
+
+    // Update the local list instead of downloading every announcement again.
+    setAnnouncements((current) =>
+      current
+        .map((item) =>
+          item.id === announcementId ? { ...item, pinned } : item
+        )
+        .sort(
+          (a, b) =>
+            Number(b.pinned) - Number(a.pinned) ||
+            b.createdAt - a.createdAt
+        )
+    );
+  } catch (err) {
+    console.error(err);
+
+    if (err.message === "PIN_LIMIT_REACHED") {
+      setAnnouncementsError(
+        "A team can only have three pinned announcements. Unpin another announcement first."
+      );
+    } else {
+      setAnnouncementsError(
+        "Couldn't update the announcement. Please try again."
+      );
+    }
+  } finally {
+    setPinUpdatingId(null);
+  }
+};
+
+
+const handleEditAnnouncement = async (announcementId, fields) => {
+  if (announcementActionId !== null) {
+    throw new Error("Another announcement action is in progress.");
+  }
+
+  setAnnouncementActionId(announcementId);
+  setAnnouncementsError("");
+
+  try {
+    await editAnnouncement(teamId, announcementId, fields);
+
+    setAnnouncements((current) =>
+      current.map((item) =>
+        item.id === announcementId
+          ? { ...item, title: fields.title.trim(), body: fields.body.trim() }
+          : item
+      )
+    );
+  } catch (err) {
+    console.error(err);
+    setAnnouncementsError("Couldn't edit the announcement. Please try again.");
+    throw err;
+  } finally {
+    setAnnouncementActionId(null);
+  }
+};
+
+const handleDeleteAnnouncement = async (announcementId) => {
+  try {
+    await deleteAnnouncement(teamId, announcementId);
+
+    setAnnouncements((current) =>
+      current.filter((item) => item.id !== announcementId)
+    );
+  } catch (err) {
+    console.error(err);
+    setAnnouncementsError(
+      err.message === "NOT_ANNOUNCEMENT_AUTHOR"
+        ? "You can only delete your own announcements."
+        : "Couldn't delete the announcement. Please try again."
+    );
+  } finally {
+    setAnnouncementActionId(null);
+  }
+};
+
   const toggleFollow = () => {
     setFollowers((n) => Math.max(0, n + (isFollowing ? -1 : 1)));
     setIsFollowing((f) => !f);
   };
 
-  // TODO(backend): Replace with postAnnouncement(teamId, { title, body, pinned, authorId, authorName })
-  // and then reload the list from getAnnouncements(teamId).
-  const handlePost = ({ title, body, pinned }) => {
-    setAnnouncements((list) => [
-      { id: `a${Date.now()}`, title: title.trim(), body: body.trim(), pinned, authorName: me.name, createdAt: new Date() },
-      ...list,
-    ]);
-  };
+  if (authLoading || loading) {
+    return <p className="p-6 text-muted">Loading…</p>;
+  }
 
-  // TODO(backend): Replace with setAnnouncementPinned(teamId, id, pinned). Update the list right away,
-  // and reload it from the server if the save fails.
-  const handleTogglePin = (id, pinned) => {
-    setAnnouncements((list) => list.map((a) => (a.id === id ? { ...a, pinned } : a)));
-  };
-
-  if (loading) return <p className="p-6 text-muted">Loading…</p>;
   if (error) return <FormAlert>{error}</FormAlert>;
   if (!team) return null; // redirect in progress
 
   return (
     <>
-      <Link to="/Teams" className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink">
+      <Link
+        to="/Teams"
+        className="mb-4 inline-flex items-center gap-1.5 text-sm font-medium text-muted hover:text-ink"
+      >
         <Icon name="arrowLeft" size={16} /> All teams
       </Link>
 
@@ -161,23 +256,32 @@ export default function TeamPage() {
           aria-hidden="true"
           className="pointer-events-none absolute -right-6 -top-8 w-56 opacity-[0.06] sm:w-72"
         />
+
         <p className="relative text-sm font-medium text-white/70">
           {activityName(team.org_cat, team.org)}
           {team.org_cat === "club" ? " club" : ""}, Saint Joseph's University
         </p>
+
         <h1 className="relative mt-1 max-w-3xl font-serif text-[36px] leading-[1.1] font-semibold text-white sm:text-[52px]">
           {team.name}
         </h1>
+
         <div className="relative mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
           <p className="text-sm text-white/80">
-            <span className="font-semibold tabular-nums text-white">{team.followers ?? 0}</span> {team.followers === 1 ? "fan" : "fans"}
+            <span className="font-semibold tabular-nums text-white">
+              {team.followers ?? 0}
+            </span>{" "}
+            {team.followers === 1 ? "fan" : "fans"}
           </p>
+
           <button
             onClick={toggleFollow}
             aria-pressed={isFollowing}
             className={cx(
               "ml-auto inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold transition-colors disabled:opacity-60",
-              isFollowing ? "border border-white/40 text-white hover:bg-white/10" : "bg-white text-crimson hover:bg-white/90",
+              isFollowing
+                ? "border border-white/40 text-white hover:bg-white/10"
+                : "bg-white text-crimson hover:bg-white/90"
             )}
           >
             <Icon name={isFollowing ? "check" : "star"} size={16} />
@@ -187,7 +291,11 @@ export default function TeamPage() {
       </section>
 
       {/* Tabs */}
-      <div role="tablist" aria-label="Team sections" className="mt-6 flex gap-1 overflow-x-auto border-b border-line">
+      <div
+        role="tablist"
+        aria-label="Team sections"
+        className="mt-6 flex gap-1 overflow-x-auto border-b border-line"
+      >
         {TABS.map((tb) => (
           <button
             key={tb.id}
@@ -198,7 +306,9 @@ export default function TeamPage() {
             onClick={() => setTab(tb.id)}
             className={cx(
               "-mb-px whitespace-nowrap border-b-2 px-4 py-2.5 text-[15px] font-medium",
-              tab === tb.id ? "border-crimson text-ink" : "border-transparent text-muted hover:text-ink",
+              tab === tb.id
+                ? "border-crimson text-ink"
+                : "border-transparent text-muted hover:text-ink"
             )}
           >
             {tb.label}
@@ -206,22 +316,45 @@ export default function TeamPage() {
         ))}
       </div>
 
-      <div role="tabpanel" id={`panel-${tab}`} aria-labelledby={`tab-${tab}`} className="pt-6">
+      <div
+        role="tabpanel"
+        id={`panel-${tab}`}
+        aria-labelledby={`tab-${tab}`}
+        className="pt-6"
+      >
         {tab === "updates" && (
           <Updates
             announcements={announcements}
-            canPost={role === "coach"}
+            announcementsLoading={announcementsLoading}
+            announcementsError={announcementsError}
+            pinUpdatingId={pinUpdatingId}
+            announcementActionId={announcementActionId}
+            canPost={Boolean(user)}
+            currentUserId={user?.uid}
             onPost={handlePost}
             onTogglePin={handleTogglePin}
+            onEdit={handleEditAnnouncement}
+            onDelete={handleDeleteAnnouncement}
           />
         )}
-        {/* TODO(backend): replace with a real team-admin check, e.g. team.admins?.includes(user.uid) */}
-        {tab === "schedule" && <Schedule teamId={teamId} canManage={role === "coach"} />}
-        {tab === "roster" && <Roster roster={SAMPLE_ROSTER} me={me} />}
+
+        {tab === "schedule" && (
+          <Schedule
+            teamId={teamId}
+            canManage={Boolean(team.admins?.includes(user?.uid))}
+          />
+        )}
+
+        {tab === "roster" && (
+          <Roster roster={SAMPLE_ROSTER} me={{ uid: user?.uid }} />
+        )}
+
         {tab === "about" && (
           <div className="max-w-prose">
             <h2 className="mb-2 text-xl font-semibold">About the team</h2>
-            <p className="whitespace-pre-line text-ink/90">{team.description || "This team hasn't added a description yet."}</p>
+            <p className="whitespace-pre-line text-ink/90">
+              {team.description || "This team hasn't added a description yet."}
+            </p>
           </div>
         )}
       </div>
@@ -229,51 +362,87 @@ export default function TeamPage() {
   );
 }
 
-function Updates({ announcements, canPost, onPost, onTogglePin }) {
-  const sorted = [...announcements].sort((a, b) => Number(b.pinned) - Number(a.pinned));
 
+function Updates({
+  announcements,
+  announcementsLoading,
+  announcementsError,
+  pinUpdatingId,
+  announcementActionId,
+  canPost,
+  currentUserId,
+  onPost,
+  onTogglePin,
+  onEdit,
+  onDelete
+}) {
   return (
     <div className="flex max-w-3xl flex-col gap-4">
+      {announcementsError && (
+        <FormAlert>{announcementsError}</FormAlert>
+      )}
+
       {canPost && <Composer onPost={onPost} />}
-      {sorted.length ? (
-        sorted.map((a) => (
-          <AnnouncementCard key={a.id} item={a} canPin={canPost} onTogglePin={() => onTogglePin(a.id, !a.pinned)} />
+
+      {announcementsLoading ? (
+        <p className="text-muted">Loading announcements…</p>
+      ) : announcements.length > 0 ? (
+        announcements.map((a) => (
+          <AnnouncementCard
+            key={a.id}
+            item={a}
+            canPin={canPost}
+            canEdit={currentUserId === a.authorId}
+            canDelete={currentUserId === a.authorId}
+            pinUpdating={pinUpdatingId === a.id}
+            pinActionsDisabled={pinUpdatingId !== null || announcementActionId !== null}
+            actionsDisabled={announcementActionId !== null}
+            onTogglePin={() => onTogglePin(a.id, !a.pinned)}
+            onEdit={(fields) => onEdit(a.id, fields)}
+            onDelete={() => onDelete(a.id)}
+          />
         ))
       ) : (
         <EmptyState icon="megaphone" title="No announcements yet">
-          {canPost ? "Post the first update above. Followers will see it on their home page." : "Coach updates will show up here."}
+          {canPost
+            ? "Post the first update above."
+            : "Team announcements will show up here."}
         </EmptyState>
       )}
     </div>
   );
 }
 
+
 function Composer({ onPost }) {
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [pinned, setPinned] = useState(false);
   const [error, setError] = useState("");
-  // TODO(backend): Add `const [busy, setBusy] = useState(false);` and pass `loading={busy}` to the
-  // "Post announcement" <Button>.
+  const [busy, setBusy] = useState(false);
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault();
     if (!title.trim() || !body.trim()) {
       setError("Add a title and a message before posting.");
       return;
     }
+
     setError("");
-    // TODO(backend): Make this async and wrap the post in try/catch/finally:
-    //   setBusy(true);
-    //   try { await postAnnouncement(teamId, { title, body, pinned, authorId, authorName }); ... }
-    //   catch (err) { setError("Couldn't post the announcement. Please try again."); }
-    //   finally { setBusy(false); }
-    onPost({ title, body, pinned });
-    setTitle("");
-    setBody("");
-    setPinned(false);
-    setOpen(false);
+    setBusy(true);
+
+    try {
+      await onPost({ title, body });
+
+      setTitle("");
+      setBody("");
+      setOpen(false);
+    } catch (err) {
+      console.error(err);
+      setError("Couldn't post the announcement. Please try again.");
+    } finally {
+      setBusy(false);
+    }
   };
 
   if (!open)
@@ -288,19 +457,41 @@ function Composer({ onPost }) {
     );
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-4 rounded-xl border border-crimson/40 bg-surface p-5">
-      <TextField label="Title" value={title} onChange={(e) => setTitle(e.target.value)} maxLength={120} autoFocus />
-      <TextAreaField label="Message" value={body} onChange={(e) => setBody(e.target.value)} maxLength={2000} rows={4} />
-      <label className="flex items-center gap-2.5 text-sm">
-        <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} className="size-4 accent-[var(--crimson)]" />
-        Pin to the top of the team feed
-      </label>
+    <form
+      onSubmit={submit}
+      className="flex flex-col gap-4 rounded-xl border border-crimson/40 bg-surface p-5"
+    >
+      <TextField
+        label="Title"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        maxLength={120}
+        autoFocus
+      />
+
+      <TextAreaField
+        label="Message"
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+        maxLength={2000}
+        rows={4}
+      />
+
       {error && <FormAlert>{error}</FormAlert>}
+
       <div className="flex justify-end gap-2">
-        <Button variant="ghost" onClick={() => setOpen(false)}>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={() => setOpen(false)}
+          disabled={busy}
+        >
           Cancel
         </Button>
-        <Button type="submit">Post announcement</Button>
+
+        <Button type="submit" loading={busy}>
+          Post announcement
+        </Button>
       </div>
     </form>
   );
