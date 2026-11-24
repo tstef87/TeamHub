@@ -7,7 +7,6 @@ import {
   query,
   orderBy,          // needed by getTeamEvents
   runTransaction,   // needed by createTeam
-  writeBatch,
   // serverTimestamp,  // re-enable with createdAt below
 } from "firebase/firestore";
 // import { auth, db } from "../firebase";
@@ -62,9 +61,16 @@ export async function createTeam({ name, description = "", org_cat = "",
   const id = teamIdFromName(cleanName);
   if (!id) throw new Error("Team name must include letters or numbers.");
 
+  // One transaction can commit the team and its calendar together.
+  // Fail before writing anything rather than leave a team with missing events.
+  const MAX_EVENTS = 499; // 500 writes total, including the team document
+  if (events.length > MAX_EVENTS) {
+    throw new Error(`Calendar has too many events (maximum ${MAX_EVENTS}).`);
+  }
+
   const teamRef = doc(db, TEAMS_COLLECTION, id);
 
-  // The transaction makes the exists-check and the write one atomic step
+  // Check name uniqueness and save all documents atomically.
   await runTransaction(db, async (tx) => {
     const snap = await tx.get(teamRef);
     if (snap.exists()) throw new Error("A team with that name already exists.");
@@ -81,15 +87,10 @@ export async function createTeam({ name, description = "", org_cat = "",
       // createdAt: serverTimestamp(),
       pinnedAnnouncementsCount: 0,
     });
+    for (const ev of events) {
+      tx.set(doc(collection(db, TEAMS_COLLECTION, id, "events")), ev);
+    }
   });
-
-  for (let i = 0; i < events.length; i += 500) {
-    const batch = writeBatch(db);
-    events.slice(i, i + 500).forEach((ev) => {
-      batch.set(doc(collection(db, TEAMS_COLLECTION, id, "events")), ev);
-    });
-    await batch.commit();
-  }
 
   return id;
 }

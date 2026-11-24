@@ -344,11 +344,8 @@ const handleDeleteAnnouncement = async (announcementId) => {
             canManage={Boolean(team.admins?.includes(user?.uid))}
           />
         )}
-
-        {tab === "roster" && (
-          <Roster roster={SAMPLE_ROSTER} me={{ uid: user?.uid }} />
-        )}
-
+        {tab === "schedule" && <Schedule teamId={teamId} canManage={Boolean(user && team.admins?.includes(user.uid))} />}
+        {tab === "roster" && <Roster roster={SAMPLE_ROSTER} me={me} />}
         {tab === "about" && (
           <div className="max-w-prose">
             <h2 className="mb-2 text-xl font-semibold">About the team</h2>

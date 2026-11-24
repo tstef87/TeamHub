@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import { FormAlert } from "../../components/ui/Field";
 import seal from "../../assets/brand/sju-seal.png";
 import Button from "../../components/ui/Button";
 import { Avatar, PageHeader, RoleBadge } from "../../components/ui/misc";
@@ -23,6 +26,19 @@ const teams = [
 
 export default function Profile() {
   const navigate = useNavigate();
+  const { signOut } = useAuth();
+  const [signOutError, setSignOutError] = useState("");
+
+  const handleSignOut = async () => {
+    try {
+      setSignOutError("");
+      await signOut();
+      navigate("/Login", { replace: true });
+    } catch (err) {
+      console.error("Sign out failed:", err);
+      setSignOutError("Couldn't sign out. Please try again.");
+    }
+  };
 
   // TODO(backend): Show <Spinner /> (import from ui/misc) while the followed teams are loading.
 
@@ -70,14 +86,8 @@ export default function Profile() {
       </section>
 
       <div className="mt-10 border-t border-line pt-6">
-        <Button
-          variant="secondary"
-          onClick={() => {
-            // TODO(backend): Call the sign-out service first, e.g. `await signOut();`
-            // (make this handler async), then navigate to the login page.
-            navigate("/Login");
-          }}
-        >
+        {signOutError && <FormAlert>{signOutError}</FormAlert>}
+        <Button variant="secondary" onClick={handleSignOut}>
           Sign out
         </Button>
       </div>
