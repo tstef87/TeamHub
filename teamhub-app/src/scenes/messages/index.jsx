@@ -260,7 +260,7 @@ function NewConversation({ onClose }) {
           <UserSearch
             id="dm-search"
             autoFocus
-            excludeIds={profile?.id ? [profile.id] : []}
+            excludeIds={profile?.username ? [profile.username] : []}
             onSelect={start}
           />
         </div>
