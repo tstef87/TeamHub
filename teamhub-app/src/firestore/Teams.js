@@ -85,6 +85,7 @@ export async function createTeam({ name, description = "", org_cat = "",
       // ownerId: user.uid,
       // ownerEmail: user.email,
       // createdAt: serverTimestamp(),
+      pinnedAnnouncementsCount: 0,
     });
     for (const ev of events) {
       tx.set(doc(collection(db, TEAMS_COLLECTION, id, "events")), ev);
