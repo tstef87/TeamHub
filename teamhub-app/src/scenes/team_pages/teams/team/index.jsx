@@ -7,10 +7,12 @@ import Icon from "../../../../components/ui/Icon";
 import { Avatar, EmptyState } from "../../../../components/ui/misc";
 import { AnnouncementCard } from "../../../../components/team/TeamBits";
 import { activityName } from "../../../../lib/activities";
-import { cx } from "../../../../lib/format";
 import { getTeam } from "../../../../firestore/Teams";
 import Schedule from "../../../../components/team/Events";
 import { useAuth } from "../../../../context/AuthContext";
+import UserSearch from "../../../../components/search/UserSearch";
+import { cx, fullName } from "../../../../lib/format";
+import { directConversationId } from "../../../../firestore/Messages";
 import {
   getAnnouncements,
   postAnnouncement,
@@ -18,6 +20,17 @@ import {
   editAnnouncement,
   deleteAnnouncement
 } from "../../../../firestore/Announcements";
+import {
+  getRoster,
+  addRosterMember,
+  updateRosterMember,
+  removeRosterMember,
+  roleLabel,
+  CONTACT_ROLES,
+  ROSTER_ROLES,
+} from "../../../../firestore/Roster";
+
+
 
 const HOUR = 60 * 60 * 1000;
 const DAY = 24 * HOUR;
@@ -53,13 +66,6 @@ const SAMPLE_EVENTS = [
   },
 ];
 
-const SAMPLE_ROSTER = [
-  { id: "r1", uid: "u1", name: "Jordan Rivera", role: "coach", position: "Head Coach" },
-  { id: "r2", uid: "me", name: "Alex Johnson", role: "player", number: 9, position: "Forward" },
-  { id: "r3", uid: "u2", name: "Jamie Lee", role: "player", number: 4, position: "Defense" },
-  { id: "r4", uid: null, name: "sam@sju.edu", role: "player" },
-];
-
 const TABS = [
   { id: "updates", label: "Updates" },
   { id: "schedule", label: "Schedule" },
@@ -78,6 +84,28 @@ export default function TeamPage() {
   const [followers, setFollowers] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [roster, setRoster] = useState([]);
+  const [rosterLoading, setRosterLoading] = useState(true);
+  const [rosterError, setRosterError] = useState("");
+
+  const loadRoster = async () => {
+    setRosterLoading(true);
+    setRosterError("");
+    try {
+      setRoster(await getRoster(teamId));
+    } catch (err) {
+      console.error(err);
+      setRosterError("Couldn't load the roster.");
+    } finally {
+      setRosterLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadRoster();
+  }, [teamId]);
+
 
   const [announcements, setAnnouncements] = useState([]);
   const [announcementsLoading, setAnnouncementsLoading] = useState(true);
@@ -239,6 +267,10 @@ const handleDeleteAnnouncement = async (announcementId) => {
   if (error) return <FormAlert>{error}</FormAlert>;
   if (!team) return null; // redirect in progress
 
+  if (!team) return null; // redirect in progress
+
+  const isAdmin = Boolean(user && team?.admins?.includes(user.uid));
+
   return (
     <>
       <Link
@@ -337,15 +369,21 @@ const handleDeleteAnnouncement = async (announcementId) => {
             onDelete={handleDeleteAnnouncement}
           />
         )}
-
-        {tab === "schedule" && (
-          <Schedule
+        {tab === "schedule" && <Schedule teamId={teamId} canManage={Boolean(user && team.admins?.includes(user.uid))} />}
+        {tab === "roster" && (
+          <Roster
+            roster={roster}
+            loading={rosterLoading}
+            error={rosterError}
+            me={user}
+            admins={team.admins ?? []}
             teamId={teamId}
-            canManage={Boolean(team.admins?.includes(user?.uid))}
+            canManage={isAdmin}
+            onChange={loadRoster}
           />
         )}
-        {tab === "schedule" && <Schedule teamId={teamId} canManage={Boolean(user && team.admins?.includes(user.uid))} />}
-        {tab === "roster" && <Roster roster={SAMPLE_ROSTER} me={me} />}
+
+
         {tab === "about" && (
           <div className="max-w-prose">
             <h2 className="mb-2 text-xl font-semibold">About the team</h2>
@@ -494,54 +532,249 @@ function Composer({ onPost }) {
   );
 }
 
-function Roster({ roster, me: currentUser }) {
-  const navigate = useNavigate();
-  if (!roster.length)
-    return (
-      <EmptyState icon="teams" title="No roster yet">
-        Players added by the coach will appear here.
-      </EmptyState>
-    );
+const ROSTER_GROUPS = [
+  { title: "Coaches", role: "coach" },
+  { title: "Team Leaders", role: "leader" },
+  { title: "Players", role: "player" },
+  { title: "Members", role: "member" },
+  { title: "Other", role: "other" },
+];
 
-  const coaches = roster.filter((r) => r.role === "coach");
-  const players = roster.filter((r) => r.role !== "coach").sort((a, b) => Number(a.number ?? 999) - Number(b.number ?? 999));
+const byNumberThenName = (a, b) =>
+  (a.number ?? 999) - (b.number ?? 999) || a.name.localeCompare(b.name);
 
-  const message = () => {
-    // TODO(backend): Find or create the conversation first, then open it:
-    //   const id = await openDirectConversation(me, { uid: r.uid, name: r.name });
-    //   navigate(`/Messages/${id}`);
-    // (make this handler async and take the roster entry `r` as an argument).
-    navigate("/Messages");
+const inputCls = "h-10 w-full rounded-lg border border-line bg-surface px-3 text-sm";
+const rowBtn = "rounded-lg border border-line px-3 py-1.5 text-sm font-medium text-muted hover:border-crimson hover:text-crimson-ink";
+
+function RosterForm({ initial, existingUids = [], onSave, onCancel }) {
+  const [uid, setUid] = useState(initial?.uid ?? null);
+  const [username, setUsername] = useState(initial?.username ?? null);
+  const [linkedLabel, setLinkedLabel] = useState(
+    initial?.uid ? (initial.username ? `@${initial.username}` : initial.email || "an account") : ""
+  );
+  const [name, setName] = useState(initial?.name ?? "");
+  const [email, setEmail] = useState(initial?.email ?? "");
+  const [role, setRole] = useState(initial?.role ?? "player");
+  const [customRole, setCustomRole] = useState(initial?.customRole ?? "");
+  const [position, setPosition] = useState(initial?.position ?? "");
+  const [number, setNumber] = useState(initial?.number != null ? String(initial.number) : "");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // Quick add: fill the form from a user found in search.
+  const pickUser = (u) => {
+    const displayName = fullName(u) || u.id;
+    if (existingUids.includes(u.uid)) {
+      return setError(`${displayName} is already on the roster.`);
+    }
+    setUid(u.uid);
+    setUsername(u.id);
+    setLinkedLabel(`@${u.id}`);
+    setName(displayName);
+    setEmail(u.email ?? "");
+    setError("");
   };
 
-  const group = (title, rows) =>
-    rows.length ? (
-      <section className="mb-8">
+  const unlink = () => {
+    setUid(null);
+    setUsername(null);
+    setLinkedLabel("");
+    setName("");
+    setEmail("");
+  };
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (!name.trim()) return setError("Add a name.");
+    if (role === "other" && !customRole.trim()) return setError("Enter a role name.");
+
+    setBusy(true);
+    setError("");
+    try {
+      await onSave({ uid, username, name, email, role, customRole, position, number });
+      onCancel(); // close the form
+    } catch (err) {
+      console.error(err);
+      setError(err.message || "Couldn't save. Please try again.");
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form onSubmit={submit} className="mb-6 flex flex-col gap-4 rounded-xl border border-crimson/40 bg-surface p-5">
+      <h3 className="text-base font-semibold">{initial ? "Edit member" : "Add to roster"}</h3>
+
+      {uid ? (
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-line bg-surface-sunk px-3 py-2 text-sm">
+          <span>
+             <span className="font-medium">{linkedLabel}</span>
+          </span>
+          <button type="button" onClick={unlink} className="text-muted hover:text-crimson-ink">
+            Remove
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="roster-search" className="text-sm font-medium">
+            Quick add <span className="font-normal text-muted">(search TeamHub users)</span>
+          </label>
+          <UserSearch id="roster-search" autoFocus={!initial} onSelect={pickUser} />
+          <p className="text-xs text-muted">Or fill in the details below for someone who isn't on TeamHub yet.</p>
+        </div>
+      )}
+
+      <TextField label="Name" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} />
+      <TextField label="Email (optional)" type="email" value={email} onChange={(e) => setEmail(e.target.value)} maxLength={120} />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <label className="flex flex-col gap-1.5 text-sm font-medium">
+          Role
+          <select value={role} onChange={(e) => setRole(e.target.value)} className={inputCls}>
+            {ROSTER_ROLES.map((r) => (
+              <option key={r.value} value={r.value}>{r.label}</option>
+            ))}
+          </select>
+        </label>
+        {role === "other" && (
+          <TextField label="Role name" value={customRole} onChange={(e) => setCustomRole(e.target.value)} maxLength={40} />
+        )}
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <TextField label="Position (optional)" value={position} onChange={(e) => setPosition(e.target.value)} maxLength={40} />
+        <TextField label="Number (optional)" type="number" min={0} inputMode="numeric" value={number} onChange={(e) => setNumber(e.target.value)} />
+      </div>
+
+      {error && <FormAlert>{error}</FormAlert>}
+      <div className="flex justify-end gap-2">
+        <Button variant="ghost" onClick={onCancel}>Cancel</Button>
+        <Button type="submit" loading={busy}>{initial ? "Save changes" : "Add to roster"}</Button>
+      </div>
+    </form>
+  );
+}
+
+function Roster({ roster, loading, error, me: currentUser, admins, teamId, canManage = false, onChange }) {
+  const navigate = useNavigate();
+  const [form, setForm] = useState(null); // null | { member?: existing } (no member = adding)
+  const [actionError, setActionError] = useState("");
+
+  if (loading) return <p className="text-muted">Loading roster…</p>;
+  if (error) return <FormAlert>{error}</FormAlert>;
+
+  const addMember = async (data) => {
+    await addRosterMember(teamId, data);
+    await onChange();
+  };
+
+  const updateMember = async (id, data) => {
+    await updateRosterMember(teamId, id, data);
+    await onChange();
+  };
+
+  const removeMember = async (r) => {
+    if (!window.confirm(`Remove ${r.name} from the roster?`)) return;
+    setActionError("");
+    try {
+      await removeRosterMember(teamId, r.id);
+      await onChange();
+    } catch (err) {
+      console.error(err);
+      setActionError("Couldn't remove them. Please try again.");
+    }
+  };
+
+  const message = (r) => {
+    if (!currentUser) return navigate("/Login");
+
+    const id = directConversationId(currentUser.uid, r.uid);
+    navigate(`/Messages/${id}`, {
+      state: { draftWith: { uid: r.uid, name: r.name } },
+    });
+  };
+
+
+  const canMessage = (r) =>
+    CONTACT_ROLES.includes(r.role) && r.uid && r.uid !== currentUser?.uid;
+
+  const group = ({ title, role }) => {
+    const rows = roster.filter((r) => r.role === role).sort(byNumberThenName);
+    if (!rows.length) return null;
+
+    return (
+      <section key={role} className="mb-8">
         <h2 className="mb-3 text-xl font-semibold">{title}</h2>
         <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-surface">
           {rows.map((r) => (
-            <li key={r.id} className="flex items-center gap-4 px-4 py-3">
-              <span className="w-8 text-center font-serif text-lg font-semibold tabular-nums text-crimson-ink">{r.number ?? ""}</span>
+            <li key={r.id} className="flex flex-wrap items-center gap-4 px-4 py-3">
+              <span className="w-8 text-center font-serif text-lg font-semibold tabular-nums text-crimson-ink">
+                {r.number ?? ""}
+              </span>
               <Avatar name={r.name} />
               <div className="min-w-0 flex-1">
-                <p className="truncate font-medium">{r.name}</p>
-                <p className="truncate text-sm text-muted">{r.position ?? (r.role === "coach" ? "Coach" : "Player")}</p>
+                <p className="truncate font-medium">
+                  {r.name}
+                  {r.uid && admins.includes(r.uid) && (
+                    <span className="ml-2 rounded-full border border-line px-2 py-0.5 text-xs text-muted">Admin</span>
+                  )}
+                </p>
+                <p className="truncate text-sm text-muted">
+                  {[roleLabel(r), r.position].filter(Boolean).join(" · ")}
+                </p>
               </div>
-              {r.uid && r.uid !== currentUser.uid && (
-                <Button variant="secondary" size="sm" onClick={message}>
-                  <Icon name="message" size={16} /> Message
-                </Button>
-              )}
+              <div className="flex shrink-0 gap-2">
+                {canMessage(r) && (
+                  <Button variant="secondary" size="sm" onClick={() => message(r)}>
+                    <Icon name="message" size={16} /> Message
+                  </Button>
+                )}
+                {canManage && (
+                  <>
+                    <button onClick={() => setForm({ member: r })} aria-label={`Edit ${r.name}`} className={rowBtn}>Edit</button>
+                    <button onClick={() => removeMember(r)} aria-label={`Remove ${r.name}`} className={rowBtn}>Remove</button>
+                  </>
+                )}
+              </div>
             </li>
           ))}
         </ul>
       </section>
-    ) : null;
+    );
+  };
 
   return (
     <div className="max-w-3xl">
-      {group("Coaches", coaches)}
-      {group("Players", players)}
+      {canManage && !form && (
+        <div className="mb-4 flex justify-end">
+          <Button onClick={() => setForm({})}>
+            <Icon name="teams" size={16} /> Add to roster
+          </Button>
+        </div>
+      )}
+
+      {form && (
+        <RosterForm
+          key={form.member?.id ?? "new"}
+          initial={form.member}
+          existingUids={roster.filter((r) => r.uid && r.id !== form.member?.id).map((r) => r.uid)}
+          onSave={form.member ? (data) => updateMember(form.member.id, data) : addMember}
+          onCancel={() => setForm(null)}
+        />
+      )}
+
+      {actionError && (
+        <div className="mb-4">
+          <FormAlert>{actionError}</FormAlert>
+        </div>
+      )}
+
+      {roster.length === 0 ? (
+        <EmptyState icon="teams" title="No roster yet">
+          {canManage ? "Add your coaches and players to get started." : "Players added by the coach will appear here."}
+        </EmptyState>
+      ) : (
+        ROSTER_GROUPS.map(group)
+      )}
     </div>
   );
 }
