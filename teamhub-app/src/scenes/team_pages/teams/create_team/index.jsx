@@ -66,7 +66,16 @@ export default function CreateTeam() {
         org_cat: activityType,
         org: activity,
         events: calendarEvents,
-        members: members.map((m) => m.uid),
+        roster: members.map((m) => ({
+          uid: m.uid,
+          username: m.id,                  
+          name: fullName(m) || m.id,
+          email: m.email ?? "",
+          role: m.role ?? "player",        
+          customRole: m.customRole ?? "",
+          position: m.position ?? "",
+          number: m.number ?? "",
+        })),
         admins: [user.uid],
       });
       navigate("/Teams");

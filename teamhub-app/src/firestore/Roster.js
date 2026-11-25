@@ -51,7 +51,7 @@ const cleanText = (value) => {
 };
 
 // Validate and normalize roster form input. Shared by add and update.
-function cleanMember({ name, email, role, customRole, position, number }) {
+export function cleanMember({ name, email, role, customRole, position, number }){
   const cleanName = cleanText(name);
   if (!cleanName) throw new Error("Name is required.");
 
