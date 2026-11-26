@@ -4,7 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import { FormAlert } from "../../components/ui/Field";
 import seal from "../../assets/brand/sju-seal.png";
 import Button from "../../components/ui/Button";
-import { Avatar, PageHeader, RoleBadge } from "../../components/ui/misc";
+import { Avatar, PageHeader } from "../../components/ui/misc";
 import { TeamRow } from "../../components/team/TeamBits";
 
 // TODO(backend): Remove the sample data below and load the real values instead.
@@ -54,7 +54,7 @@ export default function Profile() {
             <h2 className="text-2xl font-semibold">{displayName}</h2>
             <p className="text-muted">@{profile.username}</p>
             <div className="mt-2">
-              <RoleBadge role={role} />
+              {/* <RoleBadge role={role} /> */}
             </div>
           </div>
         </div>

@@ -75,24 +75,24 @@ export function EmptyState({ icon, title, children, action }) {
   );
 }
 
-const roleLabel = { coach: "Coach", player: "Player", follower: "Fan" };
+// const roleLabel = { coach: "Coach", player: "Player", follower: "Fan" };
 
-export function RoleBadge({ role }) {
-  return (
-    <span
-      className={cx(
-        "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
-        role === "coach" && "bg-gold-soft text-gold",
-        role === "player" && "bg-crimson-soft text-crimson-ink",
-        role === "follower" && "bg-surface-sunk text-muted",
-      )}
-    >
-      {roleLabel[role]}
-    </span>
-  );
-}
+// export function RoleBadge({ role }) {
+//   return (
+//     <span
+//       className={cx(
+//         "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold",
+//         role === "coach" && "bg-gold-soft text-gold",
+//         role === "player" && "bg-crimson-soft text-crimson-ink",
+//         role === "follower" && "bg-surface-sunk text-muted",
+//       )}
+//     >
+//       {roleLabel[role]}
+//     </span>
+//   );
+// }
 
-export { roleLabel };
+// export { roleLabel };
 
 export function PageHeader({ title, description, actions }) {
   return (
